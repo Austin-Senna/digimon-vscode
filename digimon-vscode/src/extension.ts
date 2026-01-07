@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { DigimonStatsProvider } from './DigimonStatsProvider';
-import { DigiviceProvider } from './DigiviceProvider';
+import { DigimonPlaygroundProvider } from './DigimonPlaygroundProvider';
 export function activate(context: vscode.ExtensionContext) {
 	const digimonStatsProvider = new DigimonStatsProvider();
 
@@ -12,10 +12,10 @@ export function activate(context: vscode.ExtensionContext) {
 		digimonStatsProvider.refresh();
 	});
 
-	const digiviceProvider = new DigiviceProvider(context.extensionUri);
+	const digiviceProvider = new DigimonPlaygroundProvider(context.extensionUri);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
-            'digimonEnclosureView', 
+            'digimonPlayground', 
             digiviceProvider
         )
     );

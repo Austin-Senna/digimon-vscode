@@ -34,29 +34,33 @@
           "title": "Digimon Buddy",
           "icon": "resources/digivice.webp"
         }
-      ],
-      "panel": [
-        {
-          "id": "Digimon-Playground",
-          "title": "Digimon Stats"
-        }
       ]
     },
     "views": {
       "Digimon-Buddy": [
+        {
+          "id": "digimonView",
+          "name": "Digimon Control",
+          "type": "tree"
+        },
         {
           "id": "digivice",
           "name": "digivice",
           "type": "webview"
         },
         {
-          "id": "digimonView",
-          "name": "Digimon Stats",
-          "type": "tree"
-        }, 
-        {
           "id": "digimonPlayground",
-          "name": "Digimon Playground"
+          "name": "Digimon Playground",
+          "type": "webview"
+        }
+      ]
+    },
+    "menu": {
+      "view/item/context": [
+        {
+          "command": "digimon.feed",
+          "when": "view == digimonView",
+          "group": "navigation"
         }
       ]
     }

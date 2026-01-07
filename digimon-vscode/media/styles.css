@@ -1,0 +1,28 @@
+body {
+    background-color: transparent;
+    padding: 0;
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    align-items: flex-end;
+}
+
+.pet-container {
+    position: absolute;
+    bottom: 0;
+    width: 32px;
+    height: 32px;
+    image-rendering: pixelated;
+    background-size: 300% 400%;
+    
+    /* We set the image via JS so we can swap it easily */
+    background-image: none; 
+
+    animation: hop 0.5s infinite alternate ease-in-out;
+    transition: left 0.1s linear, transform 0.2s;
+}
+
+@keyframes hop {
+    from { margin-bottom: 0px; }
+    to   { margin-bottom: 4px; }
+}

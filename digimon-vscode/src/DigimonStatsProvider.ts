@@ -3,11 +3,9 @@ import * as vscode from 'vscode';
 // 1. The Provider (The Waiter)
 export class DigimonStatsProvider implements vscode.TreeDataProvider<DigimonStat> {
 
-  // This event tells VS Code: "Hey! The data changed! Redraw the list!"
   private _onDidChangeTreeData: vscode.EventEmitter<DigimonStat | undefined | null | void> = new vscode.EventEmitter<DigimonStat | undefined | null | void>();
   readonly onDidChangeTreeData: vscode.Event<DigimonStat | undefined | null | void> = this._onDidChangeTreeData.event;
 
-  // Call this method whenever your pet levels up or eats
   refresh(): void {
     this._onDidChangeTreeData.fire();
   }
@@ -26,7 +24,7 @@ export class DigimonStatsProvider implements vscode.TreeDataProvider<DigimonStat
     return Promise.resolve([
       new DigimonStat('Species', 'Agumon', vscode.TreeItemCollapsibleState.None),
       new DigimonStat('Level', 'Rookie', vscode.TreeItemCollapsibleState.None),
-      new DigimonStat('HP', '100/100', vscode.TreeItemCollapsibleState.None),
+      new DigimonStat('Energy', '100/100', vscode.TreeItemCollapsibleState.None),
       new DigimonStat('Mood', 'Happy', vscode.TreeItemCollapsibleState.None)
     ]);
   }
