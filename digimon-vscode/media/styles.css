@@ -1,28 +1,306 @@
+:root {
+    --lcd: #121a14;
+    --lcd-edge: #0a0f0b;
+    --lcd-grid: rgba(184, 216, 160, 0.045);
+    --lcd-ink: #b8d8a0;
+    --heart: #e5484d;
+    --energy: #e8b931;
+    --xp: #5fb3d9;
+    --empty: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
+    --pixel: 4px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
 body {
-    background-color: transparent;
-    padding: 0;
+    height: 100%;
+}
+
+body {
     margin: 0;
-    height: 100vh;
-    display: flex;
-    align-items: flex-end;
+    padding: 12px;
+    background: transparent;
+    color: var(--vscode-foreground);
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
 }
 
-.pet-container {
+.sprite-defs {
     position: absolute;
-    bottom: 0;
-    width: 32px;
-    height: 32px;
-    image-rendering: pixelated;
-    background-size: 300% 400%;
-    
-    /* We set the image via JS so we can swap it easily */
-    background-image: none; 
-
-    animation: hop 0.5s infinite alternate ease-in-out;
-    transition: left 0.1s linear, transform 0.2s;
+    width: 0;
+    height: 0;
 }
 
-@keyframes hop {
-    from { margin-bottom: 0px; }
-    to   { margin-bottom: 4px; }
+.device {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    height: 100%;
+}
+
+/* The one loud element: the Digivice screen. */
+.screen {
+    position: relative;
+    flex: 1;
+    min-height: 140px;
+    overflow: hidden;
+    border-radius: 10px;
+    background-color: var(--lcd);
+    background-image:
+        linear-gradient(var(--lcd-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--lcd-grid) 1px, transparent 1px);
+    background-size: var(--pixel) var(--pixel);
+    box-shadow:
+        inset 0 0 0 1px var(--lcd-edge),
+        inset 0 2px 14px rgba(0, 0, 0, 0.55);
+}
+
+.screen-status {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    margin: 0;
+    color: var(--lcd-ink);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    opacity: 0.85;
+}
+
+.claude-status {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    margin: 0;
+    color: var(--lcd-ink);
+    font-size: 11px;
+    opacity: 0.6;
+}
+
+.screen[data-claude="waiting"] .claude-status {
+    color: var(--energy);
+    opacity: 1;
+    animation: blink 1.2s steps(2, jump-none) infinite;
+}
+
+@keyframes blink {
+    50% { opacity: 0.35; }
+}
+
+.floor {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 14px;
+    height: var(--pixel);
+    background-image: linear-gradient(90deg, var(--lcd-ink) 50%, transparent 50%);
+    background-size: calc(var(--pixel) * 2) var(--pixel);
+    opacity: 0.18;
+}
+
+.pet {
+    position: absolute;
+    bottom: 18px;
+    left: 0;
+    width: 64px;
+    height: 64px;
+    cursor: pointer;
+    image-rendering: pixelated;
+    background-repeat: no-repeat;
+    /* 3x4 grid of 16px frames; the image is set from script.js. */
+    background-size: 300% 400%;
+}
+
+.pet.egg {
+    background-size: 300% 100%;
+}
+
+.pet.evolving {
+    animation: evolve-flash 0.5s steps(2, jump-none) 4;
+}
+
+@keyframes evolve-flash {
+    from { filter: brightness(1); }
+    to   { filter: brightness(3) saturate(0); }
+}
+
+.zzz {
+    position: absolute;
+    display: none;
+    color: var(--lcd-ink);
+    font-size: 12px;
+    font-weight: 600;
+    pointer-events: none;
+}
+
+.zzz span {
+    position: relative;
+    top: -6px;
+}
+
+.zzz span + span {
+    top: -12px;
+}
+
+.screen.sleeping .zzz {
+    display: block;
+    animation: drift 2.4s ease-in-out infinite;
+}
+
+@keyframes drift {
+    50% { transform: translateY(-4px); opacity: 0.6; }
+}
+
+/* Readout: quiet, theme-native. */
+.readout {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.identity {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.identity h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.stage {
+    flex-shrink: 0;
+    color: var(--vscode-descriptionForeground);
+    font-size: 12px;
+}
+
+.xp {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.bar {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--empty);
+    overflow: hidden;
+}
+
+.bar span {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--xp);
+    transition: width 0.4s ease-out;
+}
+
+.xp-text {
+    flex-shrink: 0;
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.hint {
+    margin: 0;
+    color: var(--vscode-descriptionForeground);
+}
+
+.meters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 0;
+}
+
+.meters dt {
+    margin-bottom: 5px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+}
+
+.meters dd {
+    display: flex;
+    gap: 4px;
+    margin: 0;
+}
+
+.hearts svg {
+    width: 14px;
+    height: 12px;
+    fill: var(--empty);
+}
+
+.hearts svg.on {
+    fill: var(--heart);
+}
+
+.segments span {
+    width: 8px;
+    height: 12px;
+    border-radius: 1px;
+    background: var(--empty);
+}
+
+.segments span.on {
+    background: var(--energy);
+}
+
+.feed {
+    padding: 6px 12px;
+    border: 1px solid var(--vscode-button-border, transparent);
+    border-radius: 4px;
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    font: inherit;
+    cursor: pointer;
+}
+
+.feed:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.feed:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+}
+
+.feed:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.history {
+    display: flex;
+    justify-content: space-between;
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+}
+
+.device.egg .meters,
+.device.egg .feed,
+.device.egg .history,
+.device:not(.egg) .hint {
+    display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .screen.sleeping .zzz,
+    .screen[data-claude="waiting"] .claude-status,
+    .pet.evolving {
+        animation: none;
+    }
+    .bar span {
+        transition: none;
+    }
 }

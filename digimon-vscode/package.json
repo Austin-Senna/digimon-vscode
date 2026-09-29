@@ -1,37 +1,73 @@
 {
   "name": "digimon-vscode",
-  "displayName": "digimon-vscode",
+  "displayName": "Digimon Buddy",
   "description": "digimon buddy for your programming journey",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "publisher": "austin-senna",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Austin-Senna/digimon-vscode"
+  },
   "engines": {
     "vscode": "^1.107.0"
   },
   "categories": [
     "Other"
   ],
-  "activationEvents": [ ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "digimonView.refreshStats",
-        "title": "Refresh Digimon Stats",
-        "icon": {
-          "light": "resources/digivice.webp",
-          "dark": "resources/digivice.webp"
-        }
+        "command": "digimon.feed",
+        "title": "Feed",
+        "category": "Digimon",
+        "icon": "$(heart)"
       },
       {
-      "command": "digimon.feed",
-      "title": "Eat",
-      "icon": "$(heart)" 
-    }
+        "command": "digimon.newEgg",
+        "title": "New Egg",
+        "category": "Digimon",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "digimon.connectClaude",
+        "title": "Connect Claude Code",
+        "category": "Digimon"
+      },
+      {
+        "command": "digimon.disconnectClaude",
+        "title": "Disconnect Claude Code",
+        "category": "Digimon"
+      }
     ],
+    "configuration": {
+      "title": "Digimon Buddy",
+      "properties": {
+        "digimon.notifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notifications when your Digimon evolves, starves, or gets exhausted."
+        },
+        "digimon.claude.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Let Claude Code sessions working in this workspace feed XP to your Digimon and show their status on its screen. Requires the digimon-claude hooks."
+        },
+        "digimon.claude.eventsPath": {
+          "type": "string",
+          "default": "~/.claude/digimon/events.jsonl",
+          "description": "Event log written by the digimon-claude hooks."
+        }
+      }
+    },
     "viewsContainers": {
-      "activitybar": [
+      "secondarySidebar": [
         {
           "id": "Digimon-Buddy",
-          "title": "Digimon Buddy",
+          "title": "Digimon",
           "icon": "resources/digivice.webp"
         }
       ]
@@ -39,32 +75,30 @@
     "views": {
       "Digimon-Buddy": [
         {
-          "id": "digimonView",
-          "name": "Digimon Control",
-          "type": "tree"
-        },
-        {
-          "id": "digivice",
-          "name": "digivice",
-          "type": "webview"
-        },
-        {
           "id": "digimonPlayground",
-          "name": "Digimon Playground",
+          "name": "Digimon",
           "type": "webview"
         }
       ]
     },
-    "menu": {
-      "view/item/context": [
+    "menus": {
+      "view/title": [
         {
           "command": "digimon.feed",
-          "when": "view == digimonView",
+          "when": "view == digimonPlayground",
           "group": "navigation"
+        },
+        {
+          "command": "digimon.newEgg",
+          "when": "view == digimonPlayground"
+        },
+        {
+          "command": "digimon.connectClaude",
+          "when": "view == digimonPlayground"
         }
       ]
     }
-},
+  },
   "scripts": {
     "vscode:prepublish": "npm run package",
     "compile": "npm run check-types && npm run lint && node esbuild.js",
@@ -77,18 +111,21 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "test:unit": "npm run compile-tests && mocha --ui tdd \"out/test/unit/**/*.test.js\"",
+    "docs:evolutions": "npm run compile-tests && node -e \"require('fs').writeFileSync('docs/evolution-lines.md', require('./out/model/evolutionDoc').renderEvolutionLines())\""
   },
   "devDependencies": {
-    "@types/vscode": "^1.107.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "typescript-eslint": "^8.48.1",
-    "eslint": "^9.39.1",
+    "@types/vscode": "^1.107.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
     "esbuild": "^0.27.1",
+    "eslint": "^9.39.1",
+    "mocha": "^11.7.5",
     "npm-run-all": "^4.1.5",
     "typescript": "^5.9.3",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "typescript-eslint": "^8.48.1"
   }
 }

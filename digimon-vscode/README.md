@@ -1,71 +1,77 @@
-# digimon-vscode README
+# Digimon Buddy
 
-This is the README for your extension "digimon-vscode". After writing up a brief description, we recommend including the following sections.
+A V-Pet style Digimon that lives in VS Code's secondary side bar (the right side, next to Chat) and grows while you code.
 
-## Features
+## How it works
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+You start with a random Digitama. Coding earns XP, and XP drives evolution through seven stages:
+Digitama → Baby I → Baby II → Child → Adult → Perfect → Ultimate.
 
-For example if there is an image subfolder under your extension project workspace:
+| Activity | XP |
+| --- | --- |
+| Editing (at most once per second) | 1 |
+| Saving a file | 5 |
+| Making a git commit | 25 |
 
-\!\[feature X\]\(images/feature-x.png\)
+Your Digimon needs care:
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+- **Fullness** drops over time. Feed it with the Feed button under its screen. At zero it starves, earns no XP, cannot evolve, and you take a care mistake (plus another every hour it stays starved).
+- **Energy** drains as it earns XP. At zero it is exhausted and earns half XP.
+- **Sleep** happens after 5 minutes without activity. Energy recovers while it sleeps.
 
-## Requirements
+Care mistakes decide what your Child becomes: 0-2 takes the good line (Agumon → Greymon → MetalGreymon → WarGreymon), 3-5 takes the dark line (Tyrannomon → SkullGreymon → BlackWarGreymon), and more than that ends in Numemon.
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+Time only passes while VS Code is open, so a weekend away will not starve it.
 
-## Extension Settings
+There are 13 evolution lines, listed in [docs/evolution-lines.md](docs/evolution-lines.md) and defined in `src/model/species.ts`. Adding one is a data change; `npm run test:unit` checks that every sprite it references exists.
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+## Claude Code
 
-For example:
+Run **Digimon: Connect Claude Code** (or accept the prompt on first start) to let Claude Code sessions feed your Digimon. It adds nine hooks to `~/.claude/settings.json`, after asking, with a backup at `settings.json.digimon-backup`. **Digimon: Disconnect Claude Code** removes them. Requires `python3`.
 
-This extension contributes the following settings:
+Sessions whose working directory is inside this window's workspace count as activity:
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+| Claude event | Effect |
+| --- | --- |
+| You send a prompt | 3 XP |
+| A tool call succeeds | 1 XP, sharing the one-per-second cap with your edits |
+| Claude finishes its turn | The pet cheers |
+| A tool call fails | The pet refuses |
+| An API error ends the turn | The pet looks sad |
 
-## Known Issues
+While a session runs, the screen shows "Claude is working", or a blinking "Claude needs you" when Claude waits on a permission prompt or your input.
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+**It does not slow Claude down.** The hooks are `async`, which Claude Code runs in the background without waiting and whose output it ignores. Each one is a ~40 ms stdlib-only Python script that appends one short line to a file and always exits 0.
 
-## Release Notes
+**What it records:** event kind, tool name, session id, working directory, and time, in an owner-only file at `~/.claude/digimon/events.jsonl` that rotates at 256 KiB. No prompts, code, tool inputs, or tool output. See [docs/claude-events.md](docs/claude-events.md).
 
-Users appreciate release notes as you update your extension.
+## Commands
 
-### 1.0.0
+- `Digimon: Feed`
+- `Digimon: New Egg` (asks before discarding the current Digimon)
+- `Digimon: Connect Claude Code` / `Digimon: Disconnect Claude Code`
 
-Initial release of ...
+## Settings
 
-### 1.0.1
+- `digimon.notifications`: show notifications for evolution, starvation, and exhaustion. Default `true`.
+- `digimon.claude.enabled`: react to Claude Code sessions in this workspace. Default `true`.
+- `digimon.claude.eventsPath`: event log written by the digimon-claude hooks. Default `~/.claude/digimon/events.jsonl`.
 
-Fixed issue #.
+## Development
 
-### 1.1.0
+```sh
+npm install
+npm run compile      # typecheck, lint, bundle
+npm run test:unit    # model tests, plain mocha, no VS Code needed
+npm test             # full suite inside a downloaded VS Code
+npm run docs:evolutions  # regenerate docs/evolution-lines.md after editing species.ts
+cd claude-hook && uv run pytest  # hook script tests
+```
 
-Added features X, Y, and Z.
+Press `F5` in VS Code to launch an Extension Development Host.
 
----
+Game rules live in `src/model/pet.ts` (`RULES`) as pure functions with no `vscode` dependency. The webview in `media/` only animates the state the extension sends it.
 
-## Following extension guidelines
+## Credits
 
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+Sprites from Tortoiseshel's Digimon sprite collection. Digimon is a trademark of Bandai.

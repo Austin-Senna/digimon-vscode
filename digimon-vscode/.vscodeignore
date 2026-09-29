@@ -12,3 +12,10 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+claude-hook/tests/**
+claude-hook/pyproject.toml
+claude-hook/uv.lock
+claude-hook/.venv/**
+claude-hook/.pytest_cache/**
+**/__pycache__/**
+docs/**

@@ -2,15 +2,59 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="{{csp}}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="{{styleUri}}" rel="stylesheet">
 </head>
 <body>
-    <div class="pet-container" id="pet"></div>
-    
-    <script>
-        const spriteUri = '{{spriteUri}}'; 
-    </script>
-    <script src="{{scriptUri}}"></script>
+    <svg class="sprite-defs" aria-hidden="true">
+        <symbol id="heart" viewBox="0 0 7 6" shape-rendering="crispEdges">
+            <path d="M1 0h2v1h1V0h2v1h1v2H6v1H5v1H4v1H3V5H2V4H1V3H0V1h1z"/>
+        </symbol>
+    </svg>
+
+    <main class="device egg" id="device">
+        <section class="screen" id="screen">
+            <p class="screen-status" id="status" aria-live="polite"></p>
+            <p class="claude-status" id="claude" aria-live="polite"></p>
+            <span class="zzz" id="zzz" aria-hidden="true">z<span>z</span><span>z</span></span>
+            <div class="pet" id="pet" role="img"></div>
+            <div class="floor" aria-hidden="true"></div>
+        </section>
+
+        <section class="readout">
+            <header class="identity">
+                <h1 id="name"></h1>
+                <span class="stage" id="stage"></span>
+            </header>
+
+            <div class="xp">
+                <div class="bar" role="progressbar" aria-label="Experience" id="xp-bar"><span id="xp-fill"></span></div>
+                <span class="xp-text" id="xp-text"></span>
+            </div>
+
+            <p class="hint">Write some code to hatch it.</p>
+
+            <dl class="meters">
+                <div>
+                    <dt>Fullness</dt>
+                    <dd class="hearts" id="fullness"></dd>
+                </div>
+                <div>
+                    <dt>Energy</dt>
+                    <dd class="segments" id="energy"></dd>
+                </div>
+            </dl>
+
+            <button type="button" class="feed" id="feed">Feed</button>
+
+            <footer class="history">
+                <span id="mistakes"></span>
+                <span id="age"></span>
+            </footer>
+        </section>
+    </main>
+
+    <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
 </body>
 </html>
