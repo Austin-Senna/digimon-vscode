@@ -17,6 +17,8 @@ or the inode change should restart from offset 0.
 Stdlib only and run by path, so it works under any python3. It must never
 fail the hook: every error is swallowed and the exit code is always 0.
 """
+from __future__ import annotations  # keeps `dict | None` hints importable on macOS's system Python 3.9
+
 import json
 import os
 import sys

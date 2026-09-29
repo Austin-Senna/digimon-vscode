@@ -2,7 +2,7 @@
 name = "digimon-claude"
 version = "0.1.0"
 description = "Claude Code hooks that feed events to the Digimon pet"
-requires-python = ">=3.10"
+requires-python = ">=3.10"  # dev tooling; hook.py itself runs on 3.8+
 dependencies = []
 
 [dependency-groups]

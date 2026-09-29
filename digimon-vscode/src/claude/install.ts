@@ -1,3 +1,4 @@
+import * as childProcess from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -72,6 +73,11 @@ async function connect(extensionUri: vscode.Uri): Promise<void> {
         void vscode.window.showInformationMessage('Claude Code is already connected to your Digimon.');
         return;
     }
+    if (!await python3Works()) {
+        void vscode.window.showErrorMessage(
+            'Connecting Claude Code needs python3 on your PATH, and it did not run. Install Python 3.8 or newer, then try again.');
+        return;
+    }
     const confirm = await vscode.window.showWarningMessage(
         'Add Digimon hooks to ~/.claude/settings.json?',
         {
@@ -101,6 +107,16 @@ async function disconnect(): Promise<void> {
     if (writeSettings(withoutDigimonHooks(settings))) {
         void vscode.window.showInformationMessage('Digimon hooks removed from Claude Code.');
     }
+}
+
+/** Whether `python3` runs with the hook's flags and is new enough for hook.py (3.8+). */
+function python3Works(): Promise<boolean> {
+    const probe = 'import sys; print("ok" if sys.version_info >= (3, 8) else "old")';
+    return new Promise(resolve => {
+        childProcess.execFile('python3', ['-I', '-S', '-c', probe], { timeout: 5_000 }, (error, stdout) => {
+            resolve(!error && stdout.trim() === 'ok');
+        });
+    });
 }
 
 /** Parsed settings, `{}` when the file does not exist, or undefined (after telling the user) when it is unreadable. */

@@ -1,6 +1,8 @@
 # Digimon Buddy
 
-A V-Pet style Digimon that lives in VS Code's secondary side bar (the right side, next to Chat) and grows while you code.
+A V-Pet style Digimon that lives in VS Code's secondary side bar (the right side, next to Chat) and grows while you code. Connect Claude Code and it grows while Claude codes too.
+
+<img src="docs/images/playground.png" alt="A Greymon on the Digivice screen, with fullness, energy, XP, and a Feed button" width="320">
 
 ## How it works
 
@@ -72,6 +74,8 @@ Press `F5` in VS Code to launch an Extension Development Host.
 
 Game rules live in `src/model/pet.ts` (`RULES`) as pure functions with no `vscode` dependency. The webview in `media/` only animates the state the extension sends it.
 
-## Credits
+## Credits and disclaimer
 
-Sprites from Tortoiseshel's Digimon sprite collection. Digimon is a trademark of Bandai.
+This is an unofficial fan project. It is not affiliated with, endorsed by, or sponsored by Bandai or Toei Animation. Digimon and all related names are trademarks of Bandai.
+
+Sprites come from Tortoiseshel's Digimon sprite collection and remain the property of their respective owners; they are not covered by this project's MIT license, which applies to the source code only. Rights holders who want anything removed can [open an issue](https://github.com/Austin-Senna/digimon-vscode/issues) and it will be taken down.

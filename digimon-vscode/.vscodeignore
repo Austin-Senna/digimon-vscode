@@ -13,6 +13,7 @@ vsc-extension-quickstart.md
 **/*.ts
 **/.vscode-test.*
 claude-hook/tests/**
+docs/images/**
 claude-hook/pyproject.toml
 claude-hook/uv.lock
 claude-hook/.venv/**

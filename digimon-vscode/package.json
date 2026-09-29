@@ -1,18 +1,39 @@
 {
   "name": "digimon-vscode",
   "displayName": "Digimon Buddy",
-  "description": "digimon buddy for your programming journey",
+  "description": "A V-Pet Digimon in your sidebar that grows while you and Claude Code write code.",
   "version": "0.1.0",
   "publisher": "austin-senna",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Austin-Senna/digimon-vscode"
+    "url": "https://github.com/Austin-Senna/digimon-vscode.git",
+    "directory": "digimon-vscode"
   },
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "galleryBanner": {
+    "color": "#121a14",
+    "theme": "dark"
+  },
+  "homepage": "https://github.com/Austin-Senna/digimon-vscode#readme",
+  "bugs": {
+    "url": "https://github.com/Austin-Senna/digimon-vscode/issues"
+  },
+  "keywords": [
+    "digimon",
+    "vpet",
+    "virtual pet",
+    "tamagotchi",
+    "claude",
+    "claude code",
+    "fun"
+  ],
   "engines": {
     "vscode": "^1.107.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Visualization"
   ],
   "activationEvents": [
     "onStartupFinished"
