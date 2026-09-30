@@ -191,7 +191,7 @@ export function chooseBranch(state: PetState,
     return { state: next, events: [{ kind: 'evolved', from: species(state), to: species(next), stage: 'adult' }] };
 }
 
-/** Advance real time: hunger, sleep, energy recovery, evolution. */
+/** Advance real time: hunger while awake, energy recovery while asleep, evolution. */
 export function tick(state: PetState,
     now: number,
 ): Update {
@@ -201,14 +201,15 @@ export function tick(state: PetState,
     let next: PetState = { ...state, lastTickAt: now, ageMs: state.ageMs + elapsed };
 
     if (next.stage !== 'digitama') {
-        const fullness = Math.max(0, next.fullness - RULES.fullnessDecayPerMinute * minutes);
-        if (fullness <= 0 && state.fullness > 0) {
-            events.push({ kind: 'starving' });
-        }
-        next = { ...next, fullness };
-
         if (isAsleep(next, now)) {
+            // Asleep: it rests instead of getting hungry, so an idle VS Code left open never starves it.
             next = { ...next, energy: Math.min(RULES.maxEnergy, next.energy + RULES.energyRegenPerMinuteAsleep * minutes) };
+        } else {
+            const fullness = Math.max(0, next.fullness - RULES.fullnessDecayPerMinute * minutes);
+            if (fullness <= 0 && state.fullness > 0) {
+                events.push({ kind: 'starving' });
+            }
+            next = { ...next, fullness };
         }
     }
 

@@ -190,8 +190,9 @@ suite('game', () => {
     });
 
     test('time decay never exceeds the tick clamp', () => {
-        const child = game({ buddies: [{ ...activeBuddy(game()), stage: 'child' }] });
-        const later = tickGame(child, T0 + 24 * 60 * MINUTE).state;
+        const reopened = T0 + 24 * 60 * MINUTE;
+        const child = game({ buddies: [{ ...activeBuddy(game()), stage: 'child', lastActivityAt: reopened }] });
+        const later = tickGame(child, reopened).state;
         assert.strictEqual(activeBuddy(later).fullness, RULES.maxFullness - RULES.fullnessDecayPerMinute * RULES.maxTickGapMs / MINUTE);
     });
 });

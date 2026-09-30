@@ -86,11 +86,20 @@ suite('pet model', () => {
     });
 
     test('time gaps while VS Code is closed are clamped', () => {
-        const state = hatched();
-        const update = tick(state, T0 + 24 * 60 * MINUTE);
+        // Active right as VS Code reopens, so it is awake and the full clamped gap counts as hunger.
+        const reopened = T0 + 24 * 60 * MINUTE;
+        const state = hatched({ lastActivityAt: reopened });
+        const update = tick(state, reopened);
         const expectedLoss = RULES.fullnessDecayPerMinute * RULES.maxTickGapMs / MINUTE;
         assert.strictEqual(update.state.fullness, RULES.maxFullness - expectedLoss);
         assert.strictEqual(update.state.ageMs, RULES.maxTickGapMs);
+    });
+
+    test('hunger pauses while asleep and resumes when awake', () => {
+        const idle = hatched({ fullness: 50, lastActivityAt: T0 - RULES.sleepAfterMs });
+        assert.strictEqual(tick(idle, T0 + 3 * MINUTE).state.fullness, 50);
+        const busy = hatched({ fullness: 50, lastActivityAt: T0 + 3 * MINUTE });
+        assert.strictEqual(tick(busy, T0 + 3 * MINUTE).state.fullness, 50 - 3 * RULES.fullnessDecayPerMinute);
     });
 
     test('warns once when fullness runs out', () => {

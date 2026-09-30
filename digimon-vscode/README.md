@@ -38,7 +38,7 @@ XP raises its **level**, and it evolves at set levels: Child at Lv 10 (a few hou
 
 ## Keep it fed
 
-Every XP also earns a **bit**. Spend bits on food from the tray under its screen: meat (+25 fullness) and vitamins (+40 energy) cost 50, sirloin (refills both) costs 150. Spending bits never costs XP. A hungry Digimon stops earning XP and can't evolve until you feed it, so check on it now and then. Time only passes while VS Code is open, so a weekend away won't starve it.
+Every XP also earns a **bit**. Spend bits on food from the tray under its screen: meat (+25 fullness) and vitamins (+40 energy) cost 50, sirloin (refills both) costs 150. Spending bits never costs XP. A hungry Digimon stops earning XP and can't evolve until you feed it, so check on it now and then. It only gets hungry while you're around: time stops when VS Code is closed, and after 5 minutes without any activity it falls asleep and stops getting hungry until you're back.
 
 ## Collect a party
 
