@@ -2,12 +2,18 @@
 
 A V-Pet style Digimon that lives in VS Code's secondary side bar (the right side, next to Chat) and grows while you code. Connect Claude Code and it grows while Claude codes too.
 
-<img src="docs/images/playground.png" alt="A Greymon on the Digivice screen, with fullness, energy, XP, and a Feed button" width="320">
+<p align="center">
+<img src="docs/images/screenshot.png" alt="Greymon on the Digivice screen while Claude works, with the XP meter, fullness and energy, the food tray, and a party of three" width="320">
+</p>
 
 ## How it works
 
 You start with a random Digitama. Coding earns XP, and XP drives evolution through seven stages:
 Digitama → Baby I → Baby II → Child → Adult → Perfect → Ultimate.
+
+<p align="center">
+<img src="docs/images/evolution-line.png" alt="Agumon's line from egg to Ultimate: Agu Digitama, Zurumon, Koromon, Agumon, Greymon, MetalGreymon, WarGreymon" width="640">
+</p>
 
 | Activity | XP |
 | --- | --- |
