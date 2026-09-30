@@ -12,7 +12,7 @@ function game(overrides: Partial<GameState> = {}): GameState {
     return { ...createGame(T0, () => 0), ...overrides };
 }
 
-/** Commit repeatedly (commits are never throttled) until lifetime effort reaches `effort`. */
+/** Send prompts repeatedly (prompts have no cooldown) until lifetime effort reaches `effort`. */
 function earn(state: GameState,
     effort: number,
 ): ReturnType<typeof recordGameActivity> {
@@ -20,7 +20,7 @@ function earn(state: GameState,
     const events = [];
     let t = T0;
     while (current.effort < effort) {
-        const update = recordGameActivity(current, 'commit', t += 1);
+        const update = recordGameActivity(current, 'prompt', t += 1);
         current = update.state;
         events.push(...update.events);
     }

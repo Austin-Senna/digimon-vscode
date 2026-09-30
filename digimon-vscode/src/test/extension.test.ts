@@ -27,6 +27,26 @@ suite('Extension Test Suite', () => {
 		assert.ok(game.bits >= 0 && Number.isFinite(game.bits));
 	});
 
+	test('saving earns XP only when the file had changes', async function () {
+		this.timeout(10_000);
+		const api = await activateExtension();
+		const workspace = vscode.workspace.workspaceFolders![0].uri.fsPath;
+		const file = path.join(workspace, 'save-test.txt');
+		fs.writeFileSync(file, 'hello\n');
+		const document = await vscode.workspace.openTextDocument(file);
+
+		const edit = new vscode.WorkspaceEdit();
+		edit.insert(document.uri, new vscode.Position(0, 0), 'x');
+		await vscode.workspace.applyEdit(edit);
+		const afterEdit = api.state().xp;
+		await document.save();
+		assert.strictEqual(api.state().xp, afterEdit + 5, 'saving changes earns 5 XP');
+
+		const afterSave = api.state().xp;
+		await document.save();
+		assert.strictEqual(api.state().xp, afterSave, 'saving an unchanged file earns nothing');
+	});
+
 	test('Claude prompts in this workspace earn XP; other workspaces do not', async function () {
 		this.timeout(10_000);
 		const api = await activateExtension();

@@ -7,8 +7,8 @@ export const GAME_VERSION = 3;
 
 export const ROSTER = {
     maxBuddies: 6,
-    /** Lifetime effort per new egg; repeats forever. */
-    effortPerEgg: 3_000,
+    /** Lifetime effort per new egg (about one active day); repeats forever. */
+    effortPerEgg: 1_500,
     /** Bits earned per point of effort. */
     bitsPerEffort: 1,
     startingBits: 150,

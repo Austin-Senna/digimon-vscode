@@ -9,7 +9,7 @@ XP needed to leave each stage:
 
 | Digitama | Baby I | Baby II | Child | Adult | Perfect |
 | --- | --- | --- | --- | --- | --- |
-| 30 | 300 | 1500 | 6000 | 20000 | 50000 |
+| 15 | 150 | 1200 | 10000 | 20000 | 40000 |
 
 ## Agumon
 

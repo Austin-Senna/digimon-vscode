@@ -28,13 +28,13 @@ Connecting asks first and backs up your Claude settings file. **Digimon: Disconn
 
 ## It grows
 
-You start with a random Digitama. XP from Claude and from your own coding (edits, saves, and git commits) drives it through seven stages:
+You start with a random Digitama. XP from Claude and from your own coding drives it through seven stages. Coding earns 3 XP per 30 seconds of editing, 5 per save that writes real changes (once a minute), and 10 per git commit (once every 5 minutes), so mashing save or making empty commits earns nothing extra.
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/Austin-Senna/digimon-vscode/main/digimon-vscode/docs/images/evolution-line.png" alt="Agumon's line from egg to Ultimate: Agu Digitama, Zurumon, Koromon, Agumon, Greymon, MetalGreymon, WarGreymon" width="640">
 </p>
 
-Up to Child it evolves on its own. Then you choose its path, for Agumon either Greymon → MetalGreymon → WarGreymon or Tyrannomon → SkullGreymon → BlackWarGreymon. There are [13 lines](https://github.com/Austin-Senna/digimon-vscode/blob/main/digimon-vscode/docs/evolution-lines.md) to collect.
+It takes a few hours of work to reach Child, about a week to reach Adult, and about a month to reach Ultimate. Up to Child it evolves on its own. Then you choose its path, for Agumon either Greymon → MetalGreymon → WarGreymon or Tyrannomon → SkullGreymon → BlackWarGreymon. There are [13 lines](https://github.com/Austin-Senna/digimon-vscode/blob/main/digimon-vscode/docs/evolution-lines.md) to collect.
 
 ## Keep it fed
 
@@ -42,7 +42,7 @@ Every XP also earns a **bit**. Spend bits on food from the tray under its screen
 
 ## Collect a party
 
-Every 3,000 XP brings a new egg. Keep up to 6 buddies and click one to make it active; the others wait, frozen, until you switch back.
+About every day of active coding (1,500 XP) brings a new egg. Keep up to 6 buddies and click one to make it active; the others wait, frozen, until you switch back.
 
 ## Credits and disclaimer
 

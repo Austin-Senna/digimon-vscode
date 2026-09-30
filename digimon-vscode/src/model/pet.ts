@@ -4,14 +4,17 @@ const SECOND = 1000;
 const MINUTE = 60 * SECOND;
 
 export const RULES = {
-    /** Cumulative XP needed to leave each stage. */
+    /**
+     * Cumulative XP needed to leave each stage, tuned for roughly 300 XP per active hour (your coding plus Claude's)
+     * and about 5 active hours a day: Child after ~4 hours, Adult after ~a week, Ultimate after ~a month.
+     */
     xpToEvolve: {
-        digitama: 30,
-        babyI: 300,
-        babyII: 1_500,
-        child: 6_000,
+        digitama: 15,
+        babyI: 150,
+        babyII: 1_200,
+        child: 10_000,
         adult: 20_000,
-        perfect: 50_000,
+        perfect: 40_000,
     } as Record<Exclude<Stage, 'ultimate'>, number>,
     maxFullness: 100,
     maxEnergy: 100,
@@ -25,10 +28,13 @@ export const RULES = {
     sleepAfterMs: 5 * MINUTE,
     /** Time only advances while VS Code is open; longer gaps between ticks are clamped to this. */
     maxTickGapMs: 5 * MINUTE,
-    /** Edits earn at most one XP per active second. */
-    activeSecondCooldownMs: SECOND,
-    /** `claudeMinute` is one minute of a Claude session working in this workspace. */
-    xpPerActivity: { edit: 1, save: 5, commit: 25, prompt: 3, claudeMinute: 2 } as Record<ActivityKind, number>,
+    /**
+     * XP per rewarded activity. `claudeMinute` is one minute of a Claude session working in this workspace;
+     * `save` only counts when the file had unsaved changes (checked by the caller).
+     */
+    xpPerActivity: { edit: 3, save: 5, commit: 10, prompt: 3, claudeMinute: 2 } as Record<ActivityKind, number>,
+    /** Minimum gap between rewards of the same kind, so mashing keys, saves, or empty commits earns nothing extra. */
+    cooldownMs: { edit: 30 * SECOND, save: MINUTE, commit: 5 * MINUTE } as Record<CooldownKind, number>,
     exhaustedXpMultiplier: 0.5,
 };
 
@@ -47,14 +53,35 @@ export interface PetState {
     readonly bornAt: number;
     readonly lastTickAt: number;
     readonly lastActivityAt: number;
-    /** Last time an edit earned XP. */
+    /** Last time each cooldown-limited activity earned XP. */
     readonly lastEditXpAt: number;
+    readonly lastSaveXpAt: number;
+    readonly lastCommitXpAt: number;
 }
 
 /** `prompt` and `claudeMinute` come from Claude Code sessions working in this workspace. */
 export type ActivityKind = 'edit' | 'save' | 'commit' | 'prompt' | 'claudeMinute';
 
-const ACTIVE_SECOND_KINDS: ReadonlySet<ActivityKind> = new Set<ActivityKind>(['edit']);
+export type CooldownKind = 'edit' | 'save' | 'commit';
+
+const COOLDOWN_FIELDS: Record<CooldownKind, 'lastEditXpAt' | 'lastSaveXpAt' | 'lastCommitXpAt'> = {
+    edit: 'lastEditXpAt',
+    save: 'lastSaveXpAt',
+    commit: 'lastCommitXpAt',
+};
+
+/** The state field recording when `kind` last earned XP, or undefined for activities with no cooldown. */
+function cooldownField(kind: ActivityKind) {
+    return kind in COOLDOWN_FIELDS ? COOLDOWN_FIELDS[kind as CooldownKind] : undefined;
+}
+
+function onCooldown(state: PetState,
+    kind: ActivityKind,
+    now: number,
+): boolean {
+    const field = cooldownField(kind);
+    return field !== undefined && now - state[field] < RULES.cooldownMs[kind as CooldownKind];
+}
 
 export type PetEvent =
     | { kind: 'evolved'; from: string; to: string; stage: Stage }
@@ -97,6 +124,8 @@ export function createEgg(now: number,
         lastTickAt: now,
         lastActivityAt: now,
         lastEditXpAt: 0,
+        lastSaveXpAt: 0,
+        lastCommitXpAt: 0,
     };
 }
 
@@ -183,8 +212,7 @@ export function recordActivity(state: PetState,
     if (isAsleep(state, now)) {
         events.push({ kind: 'woke' });
     }
-    const throttled = ACTIVE_SECOND_KINDS.has(kind);
-    if (throttled && now - state.lastEditXpAt < RULES.activeSecondCooldownMs) {
+    if (onCooldown(state, kind, now)) {
         if (events.length === 0) {
             return { state, events };
         }
@@ -192,8 +220,9 @@ export function recordActivity(state: PetState,
     }
 
     let next: PetState = { ...state, lastActivityAt: now };
-    if (throttled) {
-        next = { ...next, lastEditXpAt: now };
+    const field = cooldownField(kind);
+    if (field) {
+        next = { ...next, [field]: now };
     }
 
     if (state.fullness > 0) {
@@ -232,18 +261,19 @@ export function feed(state: PetState,
 }
 
 /**
- * Base XP an activity is worth before hunger or exhaustion, or 0 when throttled.
- * Drives food and egg milestones, so a starving pet can still earn its way back to food.
+ * Base XP an activity is worth before hunger or exhaustion, or 0 while on cooldown.
+ * Drives bits and eggs, so a starving pet can still earn its way back to food.
  */
 export function activityEffort(state: PetState,
     kind: ActivityKind,
     now: number,
 ): number {
-    const throttled = ACTIVE_SECOND_KINDS.has(kind) && now - state.lastEditXpAt < RULES.activeSecondCooldownMs;
-    return throttled ? 0 : RULES.xpPerActivity[kind];
+    return onCooldown(state, kind, now) ? 0 : RULES.xpPerActivity[kind];
 }
 
 const NUMBER_FIELDS = ['xp', 'fullness', 'energy', 'ageMs', 'bornAt', 'lastTickAt', 'lastActivityAt', 'lastEditXpAt'] as const;
+/** Added after the first release; older saves read them as never used. */
+const OPTIONAL_NUMBER_FIELDS = ['lastSaveXpAt', 'lastCommitXpAt'] as const;
 
 /**
  * Accept only a well-formed state for a line that still exists, keeping just the known fields.
@@ -265,6 +295,7 @@ export function parseState(raw: unknown): PetState | undefined {
     }
     const state: Record<string, unknown> = { version: STATE_VERSION, lineId: candidate.lineId, stage: candidate.stage, branch };
     NUMBER_FIELDS.forEach(key => state[key] = candidate[key]);
+    OPTIONAL_NUMBER_FIELDS.forEach(key => state[key] = Number.isFinite(candidate[key]) ? candidate[key] : 0);
     return state as unknown as PetState;
 }
 

@@ -1,5 +1,10 @@
 # Change Log
 
+## [0.1.3] - 2026-09-29
+
+- Rebalanced XP so it rewards steady work instead of mashing keys: 3 XP per 30 seconds of editing, 5 per save that writes changes (at most once a minute), 10 per git commit (at most once every 5 minutes). Claude's rates are unchanged.
+- Evolution is paced for real use: Child after a few hours, Adult after about a week, Ultimate after about a month. A new egg arrives about once a day (every 1,500 XP).
+
 ## [0.1.2] - 2026-09-29
 
 - Fix: a VS Code window still running an older version could mistake a newer save for a corrupt one and start a fresh egg. Newer saves are now left untouched, and the outdated window asks you to reload.

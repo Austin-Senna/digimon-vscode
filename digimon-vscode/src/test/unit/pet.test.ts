@@ -98,7 +98,7 @@ suite('pet model', () => {
         const starving = hatched({ fullness: 0, lastEditXpAt: T0 });
         assert.strictEqual(activityEffort(starving, 'commit', T0 + 1), RULES.xpPerActivity.commit);
         assert.strictEqual(activityEffort(starving, 'edit', T0 + 1), 0);
-        assert.strictEqual(activityEffort(starving, 'edit', T0 + RULES.activeSecondCooldownMs), RULES.xpPerActivity.edit);
+        assert.strictEqual(activityEffort(starving, 'edit', T0 + RULES.cooldownMs.edit), RULES.xpPerActivity.edit);
     });
 
     test('edits are throttled to one XP per cooldown', () => {
@@ -107,7 +107,7 @@ suite('pet model', () => {
         const throttled = recordActivity(first.state, 'edit', T0 + 2);
         assert.strictEqual(first.state.xp, state.xp + RULES.xpPerActivity.edit);
         assert.strictEqual(throttled.state, first.state);
-        const later = recordActivity(first.state, 'edit', T0 + 1 + RULES.activeSecondCooldownMs);
+        const later = recordActivity(first.state, 'edit', T0 + 1 + RULES.cooldownMs.edit);
         assert.strictEqual(later.state.xp, first.state.xp + RULES.xpPerActivity.edit);
     });
 
@@ -123,6 +123,23 @@ suite('pet model', () => {
         assert.strictEqual(update.state.xp, state.xp + RULES.xpPerActivity.prompt);
     });
 
+    test('saves and commits are rewarded at most once per cooldown', () => {
+        for (const kind of ['save', 'commit'] as const) {
+            const state = hatched({ lastActivityAt: T0 });
+            const first = recordActivity(state, kind, T0 + 1).state;
+            assert.strictEqual(first.xp, state.xp + RULES.xpPerActivity[kind], kind);
+            assert.strictEqual(recordActivity(first, kind, T0 + RULES.cooldownMs[kind]).state.xp, first.xp, kind);
+            assert.strictEqual(recordActivity(first, kind, T0 + 1 + RULES.cooldownMs[kind]).state.xp,
+                first.xp + RULES.xpPerActivity[kind], kind);
+        }
+    });
+
+    test('cooldowns are independent per activity', () => {
+        const saved = recordActivity(hatched({ lastActivityAt: T0 }), 'save', T0 + 1).state;
+        const committed = recordActivity(saved, 'commit', T0 + 2).state;
+        assert.strictEqual(committed.xp, saved.xp + RULES.xpPerActivity.commit);
+    });
+
     test('starving pets gain no XP', () => {
         const state = hatched({ fullness: 0 });
         const update = recordActivity(state, 'commit', T0 + 1);
@@ -130,13 +147,13 @@ suite('pet model', () => {
     });
 
     test('exhausted pets gain reduced XP and say so once', () => {
-        const tired = hatched({ energy: RULES.xpPerActivity.commit * RULES.energyCostPerXp });
-        const drained = recordActivity(tired, 'commit', T0 + 1);
+        const tired = hatched({ energy: RULES.xpPerActivity.prompt * RULES.energyCostPerXp });
+        const drained = recordActivity(tired, 'prompt', T0 + 1);
         assert.strictEqual(drained.state.energy, 0);
         assert.deepStrictEqual(drained.events, [{ kind: 'exhausted' }]);
 
-        const again = recordActivity(drained.state, 'commit', T0 + 2);
-        assert.strictEqual(again.state.xp, drained.state.xp + RULES.xpPerActivity.commit * RULES.exhaustedXpMultiplier);
+        const again = recordActivity(drained.state, 'prompt', T0 + 2);
+        assert.strictEqual(again.state.xp, drained.state.xp + RULES.xpPerActivity.prompt * RULES.exhaustedXpMultiplier);
         assert.deepStrictEqual(again.events, []);
     });
 
@@ -160,7 +177,7 @@ suite('pet model', () => {
         assert.ok(isReadyToChoose(ready.state));
         assert.deepStrictEqual(ready.events, [{ kind: 'readyToChoose' }]);
         assert.strictEqual(tick(ready.state, T0 + MINUTE).state.stage, 'child');
-        assert.deepStrictEqual(recordActivity(ready.state, 'save', T0 + 2).events, []);
+        assert.deepStrictEqual(recordActivity(ready.state, 'prompt', T0 + 2).events, []);
     });
 
     test('the chosen branch picks the Adult form', () => {
@@ -196,6 +213,13 @@ suite('pet model', () => {
         assert.strictEqual(parseState({ ...state, lineId: 'missingno' }), undefined);
         assert.strictEqual(parseState({ ...state, version: 0 }), undefined);
         assert.strictEqual(parseState({ ...state, xp: 'lots' }), undefined);
+    });
+
+    test('parseState treats cooldowns missing from older saves as never used', () => {
+        const { lastSaveXpAt: _save, lastCommitXpAt: _commit, ...old } = hatched();
+        const parsed = parseState(old)!;
+        assert.strictEqual(parsed.lastSaveXpAt, 0);
+        assert.strictEqual(parsed.lastCommitXpAt, 0);
     });
 
     test('parseState drops removed care-mistake fields and maps the old Numemon branch', () => {
