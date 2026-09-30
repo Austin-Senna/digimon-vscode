@@ -6,7 +6,7 @@ import { PetController } from './PetController';
 import { trackActivity } from './activity';
 import { connectClaude } from './claude/bridge';
 import { registerClaudeInstall } from './claude/install';
-import { GameEvent, GameState, ROSTER } from './model/game';
+import { GameEvent, GameState, ROSTER, isPartyFull } from './model/game';
 import { FOODS, FoodKind, PetState, isReadyToChoose, species } from './model/pet';
 import { BRANCHES, STAGE_LABELS, displayName, findLine } from './model/species';
 import { GameStore } from './store';
@@ -35,6 +35,7 @@ export function activate(context: vscode.ExtensionContext): DigimonApi {
 		vscode.commands.registerCommand('digimon.feed', () => pickFood(controller)),
 		vscode.commands.registerCommand('digimon.customize', () => customize(playgroundProvider)),
 		vscode.commands.registerCommand('digimon.chooseEvolution', () => pickEvolution(controller)),
+		vscode.commands.registerCommand('digimon.chooseEgg', () => pickEgg(controller)),
 		vscode.commands.registerCommand('digimon.switchBuddy', () => pickBuddy(controller)),
 		vscode.commands.registerCommand('digimon.releaseBuddy', () => release(controller)),
 		vscode.commands.registerCommand('digimon.startOver', async () => {
@@ -101,6 +102,24 @@ function pickPreset(presets: readonly Preset[],
 		});
 		pick.show();
 	});
+}
+
+async function pickEgg(controller: PetController): Promise<void> {
+	const game = controller.game;
+	const offer = game.eggOffers[0];
+	if (!offer) {
+		void vscode.window.showInformationMessage('No egg to choose yet. A new one arrives every 1,500 XP.');
+		return;
+	}
+	if (isPartyFull(game)) {
+		void vscode.window.showInformationMessage(`Your party is full (${ROSTER.maxBuddies}). Release a buddy to make room for the new egg.`);
+		return;
+	}
+	const items = offer.map(lineId => ({ label: `${displayName(findLine(lineId)!.child)} egg`, lineId }));
+	const choice = await vscode.window.showQuickPick(items, { placeHolder: 'Which egg do you want?' });
+	if (choice) {
+		controller.chooseEgg(choice.lineId);
+	}
 }
 
 async function pickEvolution(controller: PetController): Promise<void> {
@@ -180,10 +199,12 @@ function notify(event: GameEvent): void {
 				}
 			});
 			break;
-		case 'eggEarned':
-			void vscode.window.showInformationMessage(event.waiting
-				? 'You earned a new egg, but your roster is full. Release a buddy to make room.'
-				: 'You earned a new egg! Click it in your roster to raise it.');
+		case 'eggOffered':
+			void vscode.window.showInformationMessage('You earned a new egg! Choose which one to raise.', 'Choose').then(choice => {
+				if (choice === 'Choose') {
+					void vscode.commands.executeCommand('digimon.chooseEgg');
+				}
+			});
 			break;
 		case 'starving':
 			void vscode.window.showWarningMessage('Your Digimon is starving.', 'Feed').then(choice => {

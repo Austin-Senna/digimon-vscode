@@ -3,10 +3,12 @@ import {
 } from './pet';
 import { Branch, LINES } from './species';
 
-export const GAME_VERSION = 3;
+export const GAME_VERSION = 4;
 
 export const ROSTER = {
     maxBuddies: 6,
+    /** How many different lines each earned egg lets the player choose between. */
+    eggChoices: 2,
     /** Lifetime effort per new egg (about one active day); repeats forever. */
     effortPerEgg: 1_500,
     /** Bits earned per point of effort. */
@@ -20,6 +22,9 @@ export interface Buddy extends PetState {
     readonly id: string;
 }
 
+/** Line ids to choose between for one earned egg. */
+export type EggOffer = readonly string[];
+
 /** Everything the player owns. Only the active buddy lives in real time; the rest are frozen. */
 export interface GameState {
     readonly version: typeof GAME_VERSION;
@@ -27,8 +32,8 @@ export interface GameState {
     readonly buddies: readonly Buddy[];
     /** Money for food. Earned from effort, spent when buying food; evolution XP is never spent. */
     readonly bits: number;
-    /** Eggs earned while the roster was full; one joins whenever a slot opens. */
-    readonly pendingEggs: number;
+    /** Earned eggs waiting for the player to pick one of two lines, oldest first. */
+    readonly eggOffers: readonly EggOffer[];
     /** Lifetime base XP from all activity, whether or not the pet could use it. */
     readonly effort: number;
     /** Eggs granted so far from effort milestones. */
@@ -38,7 +43,8 @@ export interface GameState {
 
 export type GameEvent =
     | PetEvent
-    | { kind: 'eggEarned'; waiting: boolean }
+    | { kind: 'eggOffered' }
+    | { kind: 'eggChosen'; lineId: string }
     | { kind: 'cannotAfford'; food: FoodKind }
     | { kind: 'switched'; id: string };
 
@@ -91,7 +97,7 @@ export function recordGameActivity(game: GameState,
         return { state: game, events: update.events };
     }
     const next = replaceActive({ ...game, effort: game.effort + effort, bits: game.bits + effort * ROSTER.bitsPerEffort }, update.state);
-    const rewards = grantEggs(next, now);
+    const rewards = grantEggs(next);
     return { state: rewards.state, events: [...update.events, ...rewards.events] };
 }
 
@@ -138,17 +144,49 @@ export function switchBuddy(game: GameState,
     };
 }
 
-/** Permanently remove a buddy other than the active one; a waiting egg takes its slot. */
+/** Permanently remove a buddy other than the active one, freeing a slot for a waiting egg. */
 export function releaseBuddy(game: GameState,
     id: string,
-    now: number,
-    random: () => number = Math.random,
 ): GameUpdate {
     if (id === game.activeId || !game.buddies.some(buddy => buddy.id === id)) {
         return { state: game, events: [] };
     }
-    const next = { ...game, buddies: game.buddies.filter(buddy => buddy.id !== id) };
-    return { state: game.pendingEggs > 0 ? hatchPendingEgg(next, now, random) : next, events: [] };
+    return { state: { ...game, buddies: game.buddies.filter(buddy => buddy.id !== id) }, events: [] };
+}
+
+export function isPartyFull(game: GameState): boolean {
+    return game.buddies.length >= ROSTER.maxBuddies;
+}
+
+/** Take the egg of `lineId` from the oldest offer. Needs a free slot; the egg joins the party but does not become active. */
+export function chooseEgg(game: GameState,
+    lineId: string,
+    now: number,
+): GameUpdate {
+    const [offer, ...rest] = game.eggOffers;
+    if (!offer || !offer.includes(lineId) || isPartyFull(game)) {
+        return { state: game, events: [] };
+    }
+    const egg: Buddy = { ...createEgg(now, () => 0, [lineId]), id: `b${game.nextBuddyId}` };
+    return {
+        state: { ...game, eggOffers: rest, buddies: [...game.buddies, egg], nextBuddyId: game.nextBuddyId + 1 },
+        events: [{ kind: 'eggChosen', lineId }],
+    };
+}
+
+/** Two different lines for an egg offer, preferring lines the player does not own yet. */
+export function eggOffer(ownedLineIds: readonly string[],
+    random: () => number = Math.random,
+): EggOffer {
+    const owned = new Set(ownedLineIds);
+    const fresh = LINES.map(line => line.id).filter(id => !owned.has(id));
+    // Draw without replacement so the result is always distinct, whatever the random source returns.
+    const pool = [...(fresh.length >= ROSTER.eggChoices ? fresh : LINES.map(line => line.id))];
+    const picks: string[] = [];
+    while (picks.length < ROSTER.eggChoices && pool.length > 0) {
+        picks.push(pool.splice(Math.floor(random() * pool.length), 1)[0]);
+    }
+    return picks;
 }
 
 /**
@@ -160,7 +198,7 @@ export function parseGame(raw: unknown): GameState | undefined {
         return undefined;
     }
     const candidate = raw as Record<string, unknown>;
-    if ((candidate.version !== GAME_VERSION && candidate.version !== 2)
+    if (typeof candidate.version !== 'number' || candidate.version < 2 || candidate.version > GAME_VERSION
         || !Array.isArray(candidate.buddies) || typeof candidate.activeId !== 'string') {
         return undefined;
     }
@@ -171,7 +209,11 @@ export function parseGame(raw: unknown): GameState | undefined {
     });
     const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
     if (!buddies.every(buddy => buddy !== undefined) || !buddies.some(buddy => buddy!.id === candidate.activeId)
-        || !finite(candidate.pendingEggs) || !finite(candidate.effort) || !finite(candidate.nextBuddyId)) {
+        || !finite(candidate.effort) || !finite(candidate.nextBuddyId)) {
+        return undefined;
+    }
+    const eggOffers = candidate.version >= 4 ? parseOffers(candidate.eggOffers) : pendingEggsAsOffers(candidate, buddies as Buddy[]);
+    if (!eggOffers) {
         return undefined;
     }
     const money = candidate.version === 2 ? refundV2(candidate) : { bits: candidate.bits, eggsGranted: candidate.eggsGranted };
@@ -183,11 +225,29 @@ export function parseGame(raw: unknown): GameState | undefined {
         activeId: candidate.activeId,
         buddies: buddies as Buddy[],
         bits: money.bits,
-        pendingEggs: candidate.pendingEggs,
+        eggOffers,
         effort: candidate.effort,
         eggsGranted: money.eggsGranted,
         nextBuddyId: candidate.nextBuddyId,
     };
+}
+
+function parseOffers(raw: unknown): EggOffer[] | undefined {
+    const known = new Set(LINES.map(line => line.id));
+    const valid = Array.isArray(raw) && raw.every(offer => Array.isArray(offer) && offer.length > 0
+        && offer.every(id => typeof id === 'string' && known.has(id)));
+    return valid ? raw as EggOffer[] : undefined;
+}
+
+/** Saves before version 4 counted eggs waiting for a free slot; each becomes an offer to choose from. */
+function pendingEggsAsOffers(save: Record<string, unknown>,
+    buddies: readonly Buddy[],
+): EggOffer[] | undefined {
+    const pending = save.pendingEggs;
+    if (typeof pending !== 'number' || !Number.isInteger(pending) || pending < 0) {
+        return undefined;
+    }
+    return Array.from({ length: pending }, () => eggOffer(buddies.map(buddy => buddy.lineId)));
 }
 
 function refundV2(save: Record<string, unknown>): { bits: unknown; eggsGranted: unknown } | undefined {
@@ -212,7 +272,7 @@ function withFirstBuddy(pet: PetState,
         activeId: first.id,
         buddies: [first],
         bits: ROSTER.startingBits,
-        pendingEggs: 0,
+        eggOffers: [],
         effort: 0,
         eggsGranted: 0,
         nextBuddyId: 2,
@@ -228,34 +288,18 @@ function replaceActive(game: GameState,
     };
 }
 
+/** Each egg milestone adds an offer of two lines; the player picks one with `chooseEgg`. */
 function grantEggs(game: GameState,
-    now: number,
-): GameUpdate {
-    const events: GameEvent[] = [];
-    let next = game;
-    const due = Math.floor(next.effort / ROSTER.effortPerEgg) - next.eggsGranted;
-    for (let i = 0; i < due; i++) {
-        const waiting = next.buddies.length >= ROSTER.maxBuddies;
-        next = waiting ? { ...next, pendingEggs: next.pendingEggs + 1 } : addEgg(next, now);
-        events.push({ kind: 'eggEarned', waiting });
-    }
-    return { state: due > 0 ? { ...next, eggsGranted: next.eggsGranted + due } : next, events };
-}
-
-function hatchPendingEgg(game: GameState,
-    now: number,
-    random: () => number,
-): GameState {
-    return addEgg({ ...game, pendingEggs: game.pendingEggs - 1 }, now, random);
-}
-
-/** New eggs prefer lines the player does not already have. */
-function addEgg(game: GameState,
-    now: number,
     random: () => number = Math.random,
-): GameState {
-    const owned = new Set(game.buddies.map(buddy => buddy.lineId));
-    const fresh = LINES.map(line => line.id).filter(id => !owned.has(id));
-    const egg: Buddy = { ...createEgg(now, random, fresh.length > 0 ? fresh : undefined), id: `b${game.nextBuddyId}` };
-    return { ...game, buddies: [...game.buddies, egg], nextBuddyId: game.nextBuddyId + 1 };
+): GameUpdate {
+    const due = Math.floor(game.effort / ROSTER.effortPerEgg) - game.eggsGranted;
+    if (due <= 0) {
+        return { state: game, events: [] };
+    }
+    const owned = game.buddies.map(buddy => buddy.lineId);
+    const offers = Array.from({ length: due }, () => eggOffer(owned, random));
+    return {
+        state: { ...game, eggOffers: [...game.eggOffers, ...offers], eggsGranted: game.eggsGranted + due },
+        events: offers.map(() => ({ kind: 'eggOffered' as const })),
+    };
 }

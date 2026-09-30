@@ -5,11 +5,11 @@ import { PetController } from './PetController';
 import { Appearance, resolveAppearance } from './appearance';
 import { ClaudeAnimation, ClaudeListener } from './claude/bridge';
 import { ClaudeStatus } from './claude/events';
-import { GameEvent, ROSTER, activeBuddy, eggProgress } from './model/game';
-import { FOODS, FoodKind, Mood, PetState, RULES, isReadyToChoose, mood, species, xpForNextStage } from './model/pet';
-import { BRANCHES, Branch, STAGES, STAGE_LABELS, displayName, findLine, spritePath } from './model/species';
+import { GameEvent, GameState, ROSTER, activeBuddy, eggProgress, isPartyFull } from './model/game';
+import { FOODS, FoodKind, Mood, PetState, RULES, isReadyToChoose, levelOf, mood, nextEvolutionLevel, species, xpForLevel } from './model/pet';
+import { BRANCHES, Branch, STAGES, STAGE_LABELS, Stage, displayName, findLine, spritePath } from './model/species';
 
-type Animation = ClaudeAnimation | 'eat' | 'evolve';
+type Animation = ClaudeAnimation | 'happy' | 'eat' | 'levelUp';
 
 const MOOD_LABELS: Record<Mood, string> = {
     sleeping: 'Sleeping',
@@ -33,8 +33,9 @@ const EVENT_ANIMATIONS: Partial<Record<GameEvent['kind'], Animation>> = {
     refused: 'refuse',
     cannotAfford: 'refuse',
     woke: 'happy',
-    evolved: 'evolve',
+    leveledUp: 'levelUp',
     switched: 'happy',
+    eggChosen: 'happy',
 };
 
 export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, ClaudeListener, vscode.Disposable {
@@ -52,6 +53,10 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             _controller.onDidChange(events => {
                 this._postState();
                 for (const event of events) {
+                    if (event.kind === 'evolved') {
+                        this._playEvolution(event.from, event.to, event.stage);
+                        continue;
+                    }
                     const animation = EVENT_ANIMATIONS[event.kind];
                     if (animation) {
                         this.play(animation);
@@ -83,6 +88,8 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
                 this._controller.choose(message.branch as Branch);
             } else if (message?.type === 'focusClaude') {
                 void vscode.commands.executeCommand('digimon.focusClaude');
+            } else if (message?.type === 'chooseEgg' && typeof message.lineId === 'string') {
+                this._controller.chooseEgg(message.lineId);
             } else if (message?.type === 'switch' && typeof message.id === 'string') {
                 this._controller.switchTo(message.id);
             }
@@ -102,6 +109,25 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
 
     play(animation: Animation): void {
         void this._view?.webview.postMessage({ type: 'play', animation });
+    }
+
+    /** The evolution scene needs both forms: the old sprite goes into the sphere and the new one comes out. */
+    private _playEvolution(from: string,
+        to: string,
+        stage: Stage,
+    ): void {
+        const webview = this._view?.webview;
+        if (!webview) {
+            return;
+        }
+        const previous = STAGES[STAGES.indexOf(stage) - 1];
+        const uri = (atStage: Stage, name: string) =>
+            webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, ...spritePath(atStage, name))).toString();
+        void webview.postMessage({
+            type: 'evolve',
+            from: { spriteUri: uri(previous, from), isEgg: previous === 'digitama' },
+            to: { spriteUri: uri(stage, to), name: displayName(to), stage: STAGE_LABELS[stage] },
+        });
     }
 
     previewAppearance(appearance: Appearance | undefined): void {
@@ -134,8 +160,10 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             choice: ready ? this._choice(view.webview, state) : null,
             fullness: state.fullness / RULES.maxFullness,
             energy: state.energy / RULES.maxEnergy,
-            xp: Math.floor(state.xp),
-            xpNext: xpForNextStage(state),
+            level: levelOf(state.xp),
+            levelXp: Math.floor(state.xp - xpForLevel(levelOf(state.xp))),
+            levelXpNeeded: xpForLevel(levelOf(state.xp) + 1) - xpForLevel(levelOf(state.xp)),
+            evolveAtLevel: nextEvolutionLevel(state),
             nextStage: state.stage === 'ultimate' ? null : STAGE_LABELS[STAGES[STAGES.indexOf(state.stage) + 1]],
             appearance: this._preview ?? savedAppearance(),
             age: formatDuration(state.ageMs),
@@ -158,7 +186,27 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
                 active: buddy.id === game.activeId,
             })),
             maxBuddies: ROSTER.maxBuddies,
-            pendingEggs: game.pendingEggs,
+            eggOffer: this._eggOffer(view.webview, game),
+            eggsWaiting: game.eggOffers.length,
+            partyFull: isPartyFull(game),
+        });
+    }
+
+    /** The oldest waiting egg offer, with each line's Digitama sprite to preview. */
+    private _eggOffer(webview: vscode.Webview,
+        game: GameState,
+    ) {
+        const offer = game.eggOffers[0];
+        if (!offer) {
+            return null;
+        }
+        return offer.map(lineId => {
+            const line = findLine(lineId)!;
+            return {
+                lineId,
+                name: displayName(line.child),
+                spriteUri: webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, ...spritePath('digitama', line.digitama))).toString(),
+            };
         });
     }
 

@@ -20,10 +20,31 @@ export function registerClaudeInstall(context: vscode.ExtensionContext): vscode.
         syncHookScript(context.extensionUri);
         void offerToConnect(context);
     }
+    refreshConnectedContext();
     return vscode.Disposable.from(
-        vscode.commands.registerCommand('digimon.connectClaude', () => connect(context.extensionUri)),
-        vscode.commands.registerCommand('digimon.disconnectClaude', disconnect),
+        vscode.commands.registerCommand('digimon.connectClaude', async () => {
+            await connect(context.extensionUri);
+            refreshConnectedContext();
+        }),
+        vscode.commands.registerCommand('digimon.disconnectClaude', async () => {
+            await disconnect();
+            refreshConnectedContext();
+        }),
+        // Settings can change outside VS Code (by hand, or by Claude); re-check when the window comes back into focus.
+        vscode.window.onDidChangeWindowState(state => state.focused && refreshConnectedContext()),
     );
+}
+
+/** Drives the `digimon.claudeConnected` context key that shows the Connect button until the hooks are in place. */
+function refreshConnectedContext(): void {
+    let connected = false;
+    try {
+        const settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8')) as ClaudeSettings;
+        connected = hookInstallState(settings, HOOK_COMMAND) === 'installed';
+    } catch {
+        // Missing or unreadable settings: not connected.
+    }
+    void vscode.commands.executeCommand('setContext', 'digimon.claudeConnected', connected);
 }
 
 /** Keep ~/.claude/digimon/hook.py identical to the version bundled with this extension. */
@@ -58,6 +79,7 @@ async function offerToConnect(context: vscode.ExtensionContext): Promise<void> {
     const choice = await vscode.window.showInformationMessage(message, action, "Don't Ask Again");
     if (choice === action) {
         await connect(context.extensionUri);
+        refreshConnectedContext();
     } else if (choice === "Don't Ask Again") {
         await context.globalState.update(DONT_ASK_KEY, true);
     }

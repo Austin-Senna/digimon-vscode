@@ -19,18 +19,39 @@
             <button type="button" class="claude-status" id="claude" aria-live="polite" title="Show the Claude session that needs you"></button>
             <span class="zzz" id="zzz" aria-hidden="true">z<span>z</span><span>z</span></span>
             <div class="pet" id="pet" role="img"></div>
+            <div class="emote" id="emote" aria-hidden="true" hidden></div>
+            <div class="fx" id="fx" aria-hidden="true"></div>
             <div class="floor" aria-hidden="true"></div>
+            <div class="evolve-scene" id="evolve-scene" aria-live="polite" hidden>
+                <div class="rays"></div>
+                <div class="orb">
+                    <div class="scene-sprite old" id="scene-old"></div>
+                    <svg class="cracks" viewBox="0 0 100 100" aria-hidden="true">
+                        <polyline points="50,2 44,20 55,33 46,50" />
+                        <polyline points="46,50 30,58 36,72 20,86" />
+                        <polyline points="46,50 62,60 58,76 74,90" />
+                        <polyline points="55,33 72,28 86,38" />
+                    </svg>
+                </div>
+                <div class="shards"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="scene-sprite new" id="scene-new"></div>
+                <p class="scene-caption" id="scene-caption"></p>
+                <div class="flash"></div>
+            </div>
         </section>
 
         <section class="readout">
             <header class="identity">
-                <h1 id="name"></h1>
+                <h1><span id="name"></span> <span class="level" id="level"></span></h1>
                 <span class="stage" id="stage"></span>
             </header>
 
             <div class="progress">
-                <div class="meter xp-meter" id="xp-meter" role="progressbar" aria-label="Experience" aria-valuemin="0" aria-valuemax="100"></div>
-                <p class="caption" id="xp-caption"></p>
+                <div class="meter xp-meter" id="xp-meter" role="progressbar" aria-label="Progress to next level" aria-valuemin="0" aria-valuemax="100"></div>
+                <div class="progress-captions">
+                    <p class="caption" id="xp-caption"></p>
+                    <p class="caption" id="evolve-caption"></p>
+                </div>
             </div>
 
             <p class="hint">Write some code to hatch it.</p>
@@ -64,6 +85,10 @@
                     <h2 id="roster-heading">Party <span class="num" id="roster-count"></span></h2>
                     <span class="caption" id="egg-caption"></span>
                 </header>
+                <div class="egg-offer" id="egg-offer" hidden>
+                    <p class="caption offer-note" id="egg-offer-note"></p>
+                    <div class="paths" id="egg-choices"></div>
+                </div>
                 <div class="roster" id="roster"></div>
                 <div class="meter reward-meter" id="egg-meter" aria-hidden="true"></div>
             </section>

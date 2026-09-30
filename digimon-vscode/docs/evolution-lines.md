@@ -2,14 +2,14 @@
 
 <!-- Generated from src/model/species.ts by `npm run docs:evolutions`. Do not edit by hand. -->
 
-A new egg picks one of these 13 lines. It evolves on its own up to Child. When the Child has enough XP,
+There are 13 lines. It evolves on its own up to Child. When the Child reaches its level,
 it waits for you to pick one of two paths, which fixes its Adult, Perfect, and Ultimate forms.
 
-XP needed to leave each stage:
+Level at which each stage evolves (levels keep going after Ultimate):
 
 | Digitama | Baby I | Baby II | Child | Adult | Perfect |
 | --- | --- | --- | --- | --- | --- |
-| 15 | 150 | 1200 | 10000 | 20000 | 40000 |
+| Lv 2 | Lv 4 | Lv 10 | Lv 25 | Lv 35 | Lv 50 |
 
 ## Agumon
 

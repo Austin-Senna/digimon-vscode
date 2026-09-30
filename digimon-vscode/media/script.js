@@ -6,6 +6,8 @@
     const screen = $('screen');
     const pet = $('pet');
     const zzz = $('zzz');
+    const emote = $('emote');
+    const fx = $('fx');
 
     // Sprite sheets are 3x4 grids of 16px frames, indexed row-major. Eggs are a 3x1 strip.
     const SHEET_ANIMATIONS = {
@@ -39,6 +41,24 @@
             rows: ['........', '.rrrrr..', 'rrwrrrr.', 'rrrrwrrd', 'rwrrrrrd', '.rrrrrd.', '..dddd..', '........'],
         },
     };
+    // Icons shown in the speech bubble above the pet, same 8x8 pixel format.
+    const EMOTE_ART = {
+        happy: {
+            palette: { y: '#f5c542', k: '#3a2a00' },
+            rows: ['..yyyy..', '.yyyyyy.', 'yykyykyy', 'yyyyyyyy', 'ykyyyyky', 'yykkkkyy', '.yyyyyy.', '..yyyy..'],
+        },
+        sad: {
+            palette: { b: '#7fb2e5', k: '#132a45', w: '#dff1ff' },
+            rows: ['..bbbb.w', '.bbbbbbw', 'bbkbbkbb', 'bbbbbbbb', 'bbbbbbbb', 'bbkkkkbb', 'bkbbbbkb', '.bbbbbb.'],
+        },
+        shout: {
+            palette: { m: '#f2a93b', d: '#a8641a', w: '#e5484d' },
+            rows: ['......w.', '....mmw.', '..mmmmw.', 'ddmmmm.w', 'ddmmmm..', '..mmmmw.', '....mmw.', '......w.'],
+        },
+    };
+    const HEART_ART = { palette: { r: '#e5484d' }, rows: ['.rr.rr.', 'rrrrrrr', 'rrrrrrr', '.rrrrr.', '..rrr..', '...r...'] };
+    const EMOTE_MS = 2200;
+    const MOOD_EMOTE_EVERY_MS = 14000;
     const HEARTS = 4;
     const SEGMENTS = { 'xp-meter': 24, energy: 8, 'egg-meter': 20 };
     const FRAME_MS = 500;
@@ -69,6 +89,8 @@
             render(message);
         } else if (message.type === 'play') {
             play(message.animation);
+        } else if (message.type === 'evolve') {
+            evolutionScene(message);
         }
     });
 
@@ -92,6 +114,13 @@
         }
     });
 
+    $('egg-choices').addEventListener('click', event => {
+        const button = event.target.closest('.path');
+        if (button && !button.disabled) {
+            vscode.postMessage({ type: 'chooseEgg', lineId: button.dataset.lineId });
+        }
+    });
+
     $('roster').addEventListener('click', event => {
         const button = event.target.closest('.buddy');
         if (button && button.dataset.id && !button.classList.contains('active')) {
@@ -102,8 +131,25 @@
     pet.addEventListener('click', () => {
         if (current && !current.isEgg && current.mood !== 'sleeping') {
             play('happy');
+            if (Math.random() < 0.5) {
+                showEmote('shout');
+            } else {
+                floatHearts(3);
+            }
         }
     });
+
+    // Every so often, a hungry or worn-out pet says so.
+    setInterval(() => {
+        if (!current || current.isEgg || current.mood === 'sleeping' || sceneRunning) {
+            return;
+        }
+        if (current.mood === 'starving' || current.mood === 'hungry') {
+            showEmote('hungry');
+        } else if (current.mood === 'exhausted' || current.energy <= 0.2) {
+            showEmote('sad');
+        }
+    }, MOOD_EMOTE_EVERY_MS);
 
     function buildMeter(container, count, create) {
         for (let i = 0; i < count; i++) {
@@ -151,18 +197,17 @@
     }
 
     function renderProgress(state) {
-        const progress = state.xpNext === null ? 1 : Math.min(1, state.xp / state.xpNext);
+        const progress = state.levelXp / state.levelXpNeeded;
         fillMeter($('xp-meter'), progress);
         $('xp-meter').setAttribute('aria-valuenow', String(Math.round(progress * 100)));
-        const remaining = state.xpNext === null ? 0 : Math.max(0, Math.ceil(state.xpNext - state.xp));
-        if (state.xpNext === null) {
-            caption($('xp-caption'), ['Final form, ', { num: state.xp }, ' XP']);
+        caption($('level'), ['Lv ', { num: state.level }]);
+        caption($('xp-caption'), [{ num: state.levelXpNeeded - state.levelXp }, ' XP to Lv ', { num: state.level + 1 }]);
+        if (state.evolveAtLevel === null) {
+            caption($('evolve-caption'), ['Final form']);
         } else if (state.choice) {
-            caption($('xp-caption'), ['Ready to become an ', state.nextStage]);
-        } else if (state.isEgg) {
-            caption($('xp-caption'), [{ num: remaining }, ' XP to hatch']);
+            caption($('evolve-caption'), ['Ready to evolve']);
         } else {
-            caption($('xp-caption'), [{ num: remaining }, ` XP to ${state.nextStage}`]);
+            caption($('evolve-caption'), [state.isEgg ? 'Hatches at Lv ' : 'Evolves at Lv ', { num: state.evolveAtLevel }]);
         }
     }
 
@@ -241,15 +286,35 @@
         $('roster-count').textContent = `${state.roster.length}/${state.maxBuddies}`;
         fillMeter($('egg-meter'), state.nextEgg.current / state.nextEgg.target);
         const eggIn = state.nextEgg.target - state.nextEgg.current;
-        if (state.pendingEggs > 0) {
-            caption($('egg-caption'), [{ num: state.pendingEggs }, ' waiting, release a buddy']);
-        } else if (state.roster.length >= state.maxBuddies) {
-            caption($('egg-caption'), ['Party full, next egg in ', { num: eggIn }, ' XP']);
-        } else {
-            caption($('egg-caption'), ['Egg in ', { num: eggIn }, ' XP']);
-        }
-        $('egg-caption').classList.toggle('waiting', state.pendingEggs > 0);
+        caption($('egg-caption'), ['Next egg in ', { num: eggIn }, ' XP']);
+        renderEggOffer(state);
         showThumbFrame(true);
+    }
+
+    function renderEggOffer(state) {
+        $('egg-offer').hidden = !state.eggOffer;
+        if (!state.eggOffer) {
+            return;
+        }
+        const more = state.eggsWaiting > 1 ? ` (${state.eggsWaiting - 1} more after this)` : '';
+        $('egg-offer-note').textContent = state.partyFull
+            ? `New egg! Your party is full: release a buddy to make room${more}.`
+            : `New egg! Choose one to raise${more}:`;
+        $('egg-choices').replaceChildren(...state.eggOffer.map(option => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'path';
+            button.dataset.lineId = option.lineId;
+            button.disabled = state.partyFull;
+            button.setAttribute('aria-label', `Choose the ${option.name} egg`);
+            const thumb = document.createElement('div');
+            thumb.className = 'thumb egg';
+            thumb.style.backgroundImage = `url('${option.spriteUri}')`;
+            const name = document.createElement('strong');
+            name.textContent = `${option.name} egg`;
+            button.append(thumb, name);
+            return button;
+        }));
     }
 
     /** Roster and path previews idle between their first two frames, in step with the main pet. */
@@ -292,13 +357,91 @@
     }
 
     function play(animation) {
-        if (animation === 'evolve') {
-            pet.classList.remove('evolving');
-            void pet.offsetWidth; // restart the CSS animation
-            pet.classList.add('evolving');
+        if (animation === 'levelUp') {
+            levelUpEffect();
             animation = 'happy';
+        } else if (animation === 'cheer') {
+            showEmote('shout');
+            animation = 'happy';
+        } else if (animation === 'eat') {
+            // After a moment of chewing: sometimes a happy face, otherwise hearts.
+            setTimeout(() => Math.random() < 0.5 ? showEmote('happy') : floatHearts(3), 900);
         }
         transient = { animation, until: performance.now() + TRANSIENT_MS };
+    }
+
+    let emoteTimer;
+    function showEmote(kind) {
+        const art = kind === 'hungry' ? FOOD_ART.meat : EMOTE_ART[kind];
+        emote.replaceChildren(pixelArt(art));
+        emote.hidden = false;
+        // Restart the pop-in animation when one bubble replaces another.
+        emote.style.animation = 'none';
+        void emote.offsetWidth;
+        emote.style.animation = '';
+        clearTimeout(emoteTimer);
+        emoteTimer = setTimeout(() => { emote.hidden = true; }, EMOTE_MS);
+    }
+
+    function floatHearts(count) {
+        for (let i = 0; i < count; i++) {
+            const heart = document.createElement('div');
+            heart.className = 'float';
+            heart.style.left = `${Math.round(x) + 14 + i * 14}px`;
+            heart.style.bottom = `${SIZE_PX + 16}px`;
+            heart.style.animationDelay = `${i * 0.18}s`;
+            heart.appendChild(pixelArt(HEART_ART));
+            fx.appendChild(heart);
+            setTimeout(() => heart.remove(), 1800 + i * 180);
+        }
+    }
+
+    function levelUpEffect() {
+        const label = document.createElement('div');
+        label.className = 'level-up';
+        label.textContent = 'LV UP!';
+        label.style.left = `${Math.max(4, Math.round(x) - 4)}px`;
+        label.style.bottom = `${SIZE_PX + 58}px`; // above the speech bubble, which can show at the same time
+        fx.appendChild(label);
+        setTimeout(() => label.remove(), 1700);
+        for (let i = 0; i < 10; i++) {
+            const spark = document.createElement('div');
+            spark.className = 'sparkle';
+            const angle = (i / 10) * Math.PI * 2;
+            spark.style.left = `${Math.round(x) + SIZE_PX / 2}px`;
+            spark.style.bottom = `${18 + SIZE_PX / 2}px`;
+            spark.style.setProperty('--dx', `${Math.round(Math.cos(angle) * 44)}px`);
+            spark.style.setProperty('--dy', `${Math.round(Math.sin(angle) * 44)}px`);
+            fx.appendChild(spark);
+            setTimeout(() => spark.remove(), 1000);
+        }
+        screen.classList.remove('leveling');
+        void screen.offsetWidth;
+        screen.classList.add('leveling');
+    }
+
+    let sceneRunning = false;
+    function evolutionScene({ from, to }) {
+        const scene = $('evolve-scene');
+        const old = $('scene-old');
+        const next = $('scene-new');
+        old.style.backgroundImage = `url('${from.spriteUri}')`;
+        old.classList.toggle('egg', from.isEgg);
+        next.style.backgroundImage = `url('${to.spriteUri}')`;
+        $('scene-caption').textContent = from.isEgg ? `It hatched into ${to.name}!` : `Digivolved into ${to.name}!`;
+        // Re-inserting the scene restarts every CSS animation inside it from the beginning.
+        scene.hidden = true;
+        void scene.offsetWidth;
+        scene.hidden = false;
+        sceneRunning = true;
+        emote.hidden = true;
+        pet.style.visibility = 'hidden';
+        setTimeout(() => {
+            scene.hidden = true;
+            sceneRunning = false;
+            pet.style.visibility = '';
+            play('happy');
+        }, 3900);
     }
 
     function activeAnimation(now) {
@@ -346,6 +489,8 @@
             pet.style.transform = `translateX(${Math.round(x)}px) scaleX(${direction > 0 && !current.isEgg ? -1 : 1})`;
             zzz.style.left = `${Math.round(x) + SIZE_PX - 8}px`;
             zzz.style.bottom = `${SIZE_PX + 14}px`;
+            emote.style.left = `${Math.round(x) + SIZE_PX / 2 - 6}px`;
+            emote.style.bottom = `${SIZE_PX + 22}px`;
         }
         showThumbFrame(false);
         requestAnimationFrame(step);

@@ -53,6 +53,11 @@
         "category": "Digimon"
       },
       {
+        "command": "digimon.chooseEgg",
+        "title": "Choose New Egg",
+        "category": "Digimon"
+      },
+      {
         "command": "digimon.switchBuddy",
         "title": "Switch Buddy",
         "category": "Digimon",
@@ -76,7 +81,8 @@
       {
         "command": "digimon.connectClaude",
         "title": "Connect Claude Code",
-        "category": "Digimon"
+        "category": "Digimon",
+        "icon": "$(sparkle)"
       },
       {
         "command": "digimon.disconnectClaude",
@@ -173,8 +179,8 @@
         },
         {
           "command": "digimon.connectClaude",
-          "when": "view == digimonPlayground",
-          "group": "1_claude"
+          "when": "view == digimonPlayground && !digimon.claudeConnected",
+          "group": "navigation@0"
         },
         {
           "command": "digimon.releaseBuddy",
@@ -190,6 +196,11 @@
           "command": "digimon.startOver",
           "when": "view == digimonPlayground",
           "group": "3_data"
+        },
+        {
+          "command": "digimon.disconnectClaude",
+          "when": "view == digimonPlayground && digimon.claudeConnected",
+          "group": "1_claude"
         }
       ]
     }

@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import {
-    FOODS, chooseBranch, isReadyToChoose, PetState, RULES, activityEffort, createEgg, feed, isAsleep, mood, parseState, recordActivity, species, tick,
+    FOODS, chooseBranch, isReadyToChoose, levelOf, nextEvolutionLevel, xpForLevel, PetState, RULES, activityEffort, createEgg, feed, isAsleep, mood, parseState, recordActivity, species, tick,
 } from '../../model/pet';
 import { LINES } from '../../model/species';
 
@@ -12,7 +12,7 @@ function egg(overrides: Partial<PetState> = {}): PetState {
 }
 
 function hatched(overrides: Partial<PetState> = {}): PetState {
-    return egg({ stage: 'child', xp: RULES.xpToEvolve.babyII, ...overrides });
+    return egg({ stage: 'child', xp: xpForLevel(RULES.evolveAtLevel.babyII), ...overrides });
 }
 
 /** Tick forward in steps no larger than the gap clamp, as the controller does. */
@@ -42,7 +42,7 @@ suite('pet model', () => {
     });
 
     test('egg hatches once it has enough XP', () => {
-        const update = tick(egg({ xp: RULES.xpToEvolve.digitama }), T0 + MINUTE);
+        const update = tick(egg({ xp: xpForLevel(RULES.evolveAtLevel.digitama) }), T0 + MINUTE);
         assert.strictEqual(update.state.stage, 'babyI');
         assert.deepStrictEqual(update.events, [
             { kind: 'evolved', from: 'Agu_Digitama', to: LINES[0].babyI, stage: 'babyI' },
@@ -50,10 +50,34 @@ suite('pet model', () => {
     });
 
     test('evolves as soon as activity crosses the threshold, without waiting for a tick', () => {
-        const state = egg({ xp: RULES.xpToEvolve.digitama - 1 });
+        const state = egg({ xp: xpForLevel(RULES.evolveAtLevel.digitama) - 1 });
         const update = recordActivity(state, 'save', T0 + 1);
         assert.strictEqual(update.state.stage, 'babyI');
         assert.ok(update.events.some(event => event.kind === 'evolved'));
+    });
+
+    test('level curve: 15 * (L - 1)^2 XP per level, no cap', () => {
+        assert.deepStrictEqual([1, 2, 10, 25, 50].map(xpForLevel), [0, 15, 1215, 8640, 36015]);
+        assert.strictEqual(levelOf(0), 1);
+        assert.strictEqual(levelOf(14), 1);
+        assert.strictEqual(levelOf(15), 2);
+        assert.strictEqual(levelOf(xpForLevel(120)), 120);
+        assert.strictEqual(levelOf(xpForLevel(120) - 1), 119);
+    });
+
+    test('announces each level gained', () => {
+        const state = hatched({ xp: xpForLevel(12) - 1, lastActivityAt: T0 });
+        const update = recordActivity(state, 'prompt', T0 + 1);
+        assert.ok(update.events.some(event => event.kind === 'leveledUp' && event.level === 12));
+        assert.ok(!recordActivity(update.state, 'prompt', T0 + 2).events.some(event => event.kind === 'leveledUp'));
+    });
+
+    test('Ultimate keeps leveling with no next evolution', () => {
+        const ultimate = hatched({ stage: 'ultimate', branch: 'good', xp: xpForLevel(80), lastActivityAt: T0 });
+        assert.strictEqual(nextEvolutionLevel(ultimate), null);
+        const update = recordActivity({ ...ultimate, xp: xpForLevel(81) - 1 }, 'prompt', T0 + 1);
+        assert.ok(update.events.some(event => event.kind === 'leveledUp' && event.level === 81));
+        assert.strictEqual(update.state.stage, 'ultimate');
     });
 
     test('evolves one stage per tick', () => {
@@ -171,17 +195,17 @@ suite('pet model', () => {
     });
 
     test('a Child with enough XP waits for a choice instead of evolving', () => {
-        const child = hatched({ xp: RULES.xpToEvolve.child - 1, lastActivityAt: T0 });
+        const child = hatched({ xp: xpForLevel(RULES.evolveAtLevel.child) - 1, lastActivityAt: T0 });
         const ready = recordActivity(child, 'save', T0 + 1);
         assert.strictEqual(ready.state.stage, 'child');
         assert.ok(isReadyToChoose(ready.state));
-        assert.deepStrictEqual(ready.events, [{ kind: 'readyToChoose' }]);
+        assert.deepStrictEqual(ready.events, [{ kind: 'leveledUp', level: RULES.evolveAtLevel.child }, { kind: 'readyToChoose' }]);
         assert.strictEqual(tick(ready.state, T0 + MINUTE).state.stage, 'child');
         assert.deepStrictEqual(recordActivity(ready.state, 'prompt', T0 + 2).events, []);
     });
 
     test('the chosen branch picks the Adult form', () => {
-        const ready = hatched({ xp: RULES.xpToEvolve.child });
+        const ready = hatched({ xp: xpForLevel(RULES.evolveAtLevel.child) });
         assert.strictEqual(species(chooseBranch(ready, 'good').state), LINES[0].good[0]);
         const dark = chooseBranch(ready, 'bad');
         assert.strictEqual(species(dark.state), LINES[0].bad[0]);
@@ -189,14 +213,14 @@ suite('pet model', () => {
     });
 
     test('choosing is ignored until the Child is ready, and while starving', () => {
-        const early = hatched({ xp: RULES.xpToEvolve.child - 1 });
+        const early = hatched({ xp: xpForLevel(RULES.evolveAtLevel.child) - 1 });
         assert.strictEqual(chooseBranch(early, 'good').state, early);
-        const starving = hatched({ xp: RULES.xpToEvolve.child, fullness: 0 });
+        const starving = hatched({ xp: xpForLevel(RULES.evolveAtLevel.child), fullness: 0 });
         assert.strictEqual(chooseBranch(starving, 'good').state, starving);
     });
 
     test('branch is kept through later stages', () => {
-        const adult = hatched({ stage: 'adult', branch: 'bad', xp: RULES.xpToEvolve.adult, lastActivityAt: T0 });
+        const adult = hatched({ stage: 'adult', branch: 'bad', xp: xpForLevel(RULES.evolveAtLevel.adult), lastActivityAt: T0 });
         const perfect = tick(adult, T0 + MINUTE).state;
         assert.strictEqual(species(perfect), LINES[0].bad[1]);
     });

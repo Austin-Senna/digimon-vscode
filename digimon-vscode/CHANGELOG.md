@@ -3,7 +3,11 @@
 ## [0.1.3] - 2026-09-29
 
 - Rebalanced XP so it rewards steady work instead of mashing keys: 3 XP per 30 seconds of editing, 5 per save that writes changes (at most once a minute), 10 per git commit (at most once every 5 minutes). Claude's rates are unchanged.
-- Evolution is paced for real use: Child after a few hours, Adult after about a week, Ultimate after about a month. A new egg arrives about once a day (every 1,500 XP).
+- Levels: XP raises your Digimon's level, and it evolves at set levels (Child Lv 10, Adult Lv 25, Ultimate Lv 50). Levels keep going after Ultimate.
+- An evolution scene: the screen glows blue, a sphere of light closes around your Digimon, cracks, and reveals its new form.
+- Your Digimon talks back: a happy face or hearts after eating, a hungry bubble when it needs food, a sad one when it's worn out, a shout when Claude finishes or you click it, and a level-up burst.
+- New eggs arrive about once a day (every 1,500 XP), and you pick one of two from lines you don't own yet.
+- A Connect Claude Code button in the view's title bar until Claude is connected.
 
 ## [0.1.2] - 2026-09-29
 

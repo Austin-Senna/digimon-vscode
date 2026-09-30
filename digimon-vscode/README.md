@@ -34,7 +34,7 @@ You start with a random Digitama. XP from Claude and from your own coding drives
 <img src="https://raw.githubusercontent.com/Austin-Senna/digimon-vscode/main/digimon-vscode/docs/images/evolution-line.png" alt="Agumon's line from egg to Ultimate: Agu Digitama, Zurumon, Koromon, Agumon, Greymon, MetalGreymon, WarGreymon" width="640">
 </p>
 
-It takes a few hours of work to reach Child, about a week to reach Adult, and about a month to reach Ultimate. Up to Child it evolves on its own. Then you choose its path, for Agumon either Greymon → MetalGreymon → WarGreymon or Tyrannomon → SkullGreymon → BlackWarGreymon. There are [13 lines](https://github.com/Austin-Senna/digimon-vscode/blob/main/digimon-vscode/docs/evolution-lines.md) to collect.
+XP raises its **level**, and it evolves at set levels: Child at Lv 10 (a few hours of work), Adult at Lv 25 (about a week), Ultimate at Lv 50 (about a month). Levels keep going after Ultimate. Up to Child it evolves on its own, with a glowing evolution scene each time. At Lv 25 you choose its path, for Agumon either Greymon → MetalGreymon → WarGreymon or Tyrannomon → SkullGreymon → BlackWarGreymon. There are [13 lines](https://github.com/Austin-Senna/digimon-vscode/blob/main/digimon-vscode/docs/evolution-lines.md) to collect.
 
 ## Keep it fed
 
@@ -42,7 +42,7 @@ Every XP also earns a **bit**. Spend bits on food from the tray under its screen
 
 ## Collect a party
 
-About every day of active coding (1,500 XP) brings a new egg. Keep up to 6 buddies and click one to make it active; the others wait, frozen, until you switch back.
+About every day of active coding (1,500 XP) earns a new egg: you pick one of two from lines you don't have yet. Keep up to 6 buddies and click one to make it active; the others wait, frozen, until you switch back.
 
 ## Credits and disclaimer
 

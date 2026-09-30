@@ -1,9 +1,10 @@
 import * as assert from 'assert';
 import {
-    GameState, ROSTER, activeBuddy, createGame, feedGame, migrateFromPet, parseGame,
+    GAME_VERSION, GameState, ROSTER, activeBuddy, chooseEgg, createGame, eggOffer, feedGame, isPartyFull, migrateFromPet, parseGame,
     recordGameActivity, releaseBuddy, switchBuddy, tickGame,
 } from '../../model/game';
 import { FOODS, RULES, createEgg } from '../../model/pet';
+import { LINES } from '../../model/species';
 
 const MINUTE = 60_000;
 const T0 = 1_700_000_000_000;
@@ -25,6 +26,12 @@ function earn(state: GameState,
         events.push(...update.events);
     }
     return { state: current, events };
+}
+
+/** A game with a hatched first buddy and a chosen second egg. */
+function withSecondBuddy(): GameState {
+    const offered = earn(game(), ROSTER.effortPerEgg).state;
+    return chooseEgg(offered, offered.eggOffers[0][0], T0).state;
 }
 
 suite('game', () => {
@@ -77,40 +84,81 @@ suite('game', () => {
 
     test('version 2 saves refund their food as bits', () => {
         const v3 = game();
-        const { bits: _bits, eggsGranted: _eggs, ...rest } = v3;
-        const v2 = { ...rest, version: 2, food: { meat: 2, vitamin: 1, sirloin: 1 }, granted: { meat: 4, vitamin: 1, sirloin: 0, egg: 1 } };
+        const { bits: _bits, eggsGranted: _eggs, eggOffers: _offers, ...rest } = v3;
+        const v2 = { ...rest, version: 2, pendingEggs: 0, food: { meat: 2, vitamin: 1, sirloin: 1 }, granted: { meat: 4, vitamin: 1, sirloin: 0, egg: 1 } };
         const migrated = parseGame(JSON.parse(JSON.stringify(v2)))!;
-        assert.strictEqual(migrated.version, 3);
+        assert.strictEqual(migrated.version, GAME_VERSION);
         assert.strictEqual(migrated.bits, 2 * 50 + 1 * 50 + 1 * 150);
         assert.strictEqual(migrated.eggsGranted, 1);
         assert.ok(!('food' in migrated) && !('granted' in migrated));
     });
 
-    test('eggs arrive every milestone from lines not already owned', () => {
+    test('each egg milestone offers two lines the player does not own', () => {
         const { state, events } = earn(game(), ROSTER.effortPerEgg);
-        assert.strictEqual(state.buddies.length, 2);
-        assert.ok(events.some(event => event.kind === 'eggEarned'));
-        assert.notStrictEqual(state.buddies[1].lineId, state.buddies[0].lineId);
-        assert.strictEqual(state.activeId, state.buddies[0].id);
+        assert.strictEqual(state.buddies.length, 1, 'nothing joins until the player picks');
+        assert.strictEqual(events.filter(event => event.kind === 'eggOffered').length, 1);
+        const [offer] = state.eggOffers;
+        assert.strictEqual(offer.length, 2);
+        assert.notStrictEqual(offer[0], offer[1]);
+        assert.ok(!offer.includes(state.buddies[0].lineId));
     });
 
-    test('a full roster queues eggs until a buddy is released', () => {
-        const { state } = earn(game(), ROSTER.effortPerEgg * ROSTER.maxBuddies);
-        assert.strictEqual(state.buddies.length, ROSTER.maxBuddies);
-        assert.strictEqual(state.pendingEggs, 1);
+    test('choosing an egg adds that line and consumes the offer', () => {
+        const offered = earn(game(), ROSTER.effortPerEgg).state;
+        const pick = offered.eggOffers[0][1];
+        const update = chooseEgg(offered, pick, T0);
+        assert.strictEqual(update.state.buddies.length, 2);
+        assert.strictEqual(update.state.buddies[1].lineId, pick);
+        assert.strictEqual(update.state.buddies[1].stage, 'digitama');
+        assert.strictEqual(update.state.activeId, offered.activeId);
+        assert.deepStrictEqual(update.state.eggOffers, []);
+        assert.deepStrictEqual(update.events, [{ kind: 'eggChosen', lineId: pick }]);
+    });
 
-        const released = releaseBuddy(state, state.buddies[1].id, T0).state;
-        assert.strictEqual(released.buddies.length, ROSTER.maxBuddies);
-        assert.strictEqual(released.pendingEggs, 0);
+    test('a line outside the offer cannot be chosen', () => {
+        const offered = earn(game(), ROSTER.effortPerEgg).state;
+        const outside = LINES.map(line => line.id).find(id => !offered.eggOffers[0].includes(id))!;
+        assert.strictEqual(chooseEgg(offered, outside, T0).state, offered);
+    });
+
+    test('a full party keeps offers waiting until a buddy is released', () => {
+        let state = game();
+        for (let i = 1; i < ROSTER.maxBuddies; i++) {
+            state = earn(state, ROSTER.effortPerEgg * i).state;
+            state = chooseEgg(state, state.eggOffers[0][0], T0).state;
+        }
+        assert.strictEqual(isPartyFull(state), true);
+        state = earn(state, ROSTER.effortPerEgg * ROSTER.maxBuddies).state;
+        const pick = state.eggOffers[0][0];
+        assert.strictEqual(chooseEgg(state, pick, T0).state, state);
+
+        const released = releaseBuddy(state, state.buddies[1].id).state;
+        const chosen = chooseEgg(released, pick, T0).state;
+        assert.strictEqual(chosen.buddies.length, ROSTER.maxBuddies);
+        assert.deepStrictEqual(chosen.eggOffers, []);
+    });
+
+    test('offers fall back to any line once every line is owned', () => {
+        const offer = eggOffer(LINES.map(line => line.id), () => 0.5);
+        assert.strictEqual(new Set(offer).size, 2);
+    });
+
+    test('version 3 saves turn waiting eggs into offers', () => {
+        const { eggOffers: _offers, ...rest } = game();
+        const v3 = { ...rest, version: 3, pendingEggs: 2 };
+        const migrated = parseGame(JSON.parse(JSON.stringify(v3)))!;
+        assert.strictEqual(migrated.version, GAME_VERSION);
+        assert.strictEqual(migrated.eggOffers.length, 2);
+        assert.ok(!('pendingEggs' in migrated));
     });
 
     test('the active buddy cannot be released', () => {
         const state = game();
-        assert.strictEqual(releaseBuddy(state, state.activeId, T0).state, state);
+        assert.strictEqual(releaseBuddy(state, state.activeId).state, state);
     });
 
     test('idle buddies are frozen; switching resumes from now', () => {
-        const { state } = earn(game(), ROSTER.effortPerEgg);
+        const state = withSecondBuddy();
         const first = state.buddies[0];
         const second = state.buddies[1];
         const switched = switchBuddy(state, second.id, T0 + MINUTE).state;
@@ -123,7 +171,7 @@ suite('game', () => {
     });
 
     test('XP only goes to the active buddy', () => {
-        const { state } = earn(game(), ROSTER.effortPerEgg);
+        const state = withSecondBuddy();
         const switched = switchBuddy(state, state.buddies[1].id, T0).state;
         const before = switched.buddies[0].xp;
         const after = recordGameActivity(switched, 'commit', T0 + 1).state;
@@ -134,6 +182,7 @@ suite('game', () => {
     test('parseGame round-trips and rejects junk', () => {
         const state = earn(game(), ROSTER.effortPerEgg).state;
         assert.deepStrictEqual(parseGame(JSON.parse(JSON.stringify(state))), state);
+        assert.strictEqual(parseGame({ ...state, eggOffers: [['missingno', 'agumon']] }), undefined);
         assert.strictEqual(parseGame({ ...state, activeId: 'nobody' }), undefined);
         assert.strictEqual(parseGame({ ...state, version: 1 }), undefined);
         assert.strictEqual(parseGame({ ...state, bits: 'lots' }), undefined);

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { GameState, GameEvent, GameUpdate, activeBuddy, chooseGameBranch, feedGame, recordGameActivity, releaseBuddy, switchBuddy, tickGame, createGame } from './model/game';
+import { GameState, GameEvent, GameUpdate, activeBuddy, chooseEgg, chooseGameBranch, feedGame, recordGameActivity, releaseBuddy, switchBuddy, tickGame, createGame } from './model/game';
 import { ActivityKind, FoodKind, PetState } from './model/pet';
 import { Branch } from './model/species';
 import { GameStore } from './store';
@@ -57,7 +57,11 @@ export class PetController implements vscode.Disposable {
     }
 
     release(id: string): void {
-        this._apply(now => releaseBuddy(this._store.load(now), id, now));
+        this._apply(now => releaseBuddy(this._store.load(now), id));
+    }
+
+    chooseEgg(lineId: string): void {
+        this._apply(now => chooseEgg(this._store.load(now), lineId, now));
     }
 
     startOver(): void {

@@ -203,15 +203,6 @@ button {
     background-size: 300% 100%;
 }
 
-.pet.evolving {
-    animation: evolve-flash 0.5s steps(2, jump-none) 4;
-}
-
-@keyframes evolve-flash {
-    from { filter: brightness(1); }
-    to   { filter: brightness(3) saturate(0); }
-}
-
 .zzz {
     position: absolute;
     display: none;
@@ -264,6 +255,19 @@ button {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.level {
+    margin-left: 4px;
+    color: var(--xp);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.progress-captions {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
 }
 
 .stage {
@@ -412,6 +416,21 @@ button {
     height: 48px;
 }
 
+.egg-offer {
+    margin-bottom: 8px;
+}
+
+.offer-note {
+    margin-bottom: 6px;
+    color: var(--vscode-foreground);
+}
+
+.path:disabled {
+    opacity: 0.45;
+    cursor: default;
+    box-shadow: none;
+}
+
 .food-tray {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -516,8 +535,292 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
     .screen.sleeping .zzz,
-    .screen[data-claude="waiting"] .claude-status,
-    .pet.evolving {
+    .screen[data-claude="waiting"] .claude-status {
         animation: none;
+    }
+}
+
+/* Emote bubbles: a small speech bubble above the pet holding one pixel icon. */
+.emote {
+    position: absolute;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 30px;
+    border: 2px solid #1b1b1b;
+    border-radius: 8px;
+    background: #f7f7f2;
+    pointer-events: none;
+    animation: bubble-pop 0.18s steps(3, end);
+}
+
+.emote::after {
+    content: '';
+    position: absolute;
+    bottom: -7px;
+    left: 9px;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid #1b1b1b;
+    border-bottom: 2px solid #1b1b1b;
+    background: #f7f7f2;
+    transform: skewX(-30deg) rotate(45deg) scale(0.8);
+}
+
+.emote[hidden] {
+    display: none;
+}
+
+.emote svg {
+    width: 20px;
+    height: 20px;
+}
+
+@keyframes bubble-pop {
+    from { transform: scale(0.4); }
+    to   { transform: scale(1); }
+}
+
+/* Floating hearts, level-up text, and sparkles. */
+.fx {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.float {
+    position: absolute;
+    animation: float-up 1.4s ease-out forwards;
+}
+
+.float svg {
+    width: 14px;
+    height: 12px;
+}
+
+@keyframes float-up {
+    0%   { transform: translateY(0) scale(0.6); opacity: 0; }
+    15%  { transform: translateY(-6px) scale(1); opacity: 1; }
+    100% { transform: translateY(-46px) scale(1); opacity: 0; }
+}
+
+.level-up {
+    position: absolute;
+    color: #ffe36e;
+    font-size: 16px;
+    font-weight: 700;
+    text-shadow: 0 2px 0 #8a5a00, 0 0 8px rgba(255, 227, 110, 0.7);
+    white-space: nowrap;
+    animation: level-rise 1.6s steps(8, end) forwards;
+}
+
+@keyframes level-rise {
+    0%   { transform: translateY(8px); opacity: 0; }
+    20%  { transform: translateY(0); opacity: 1; }
+    75%  { opacity: 1; }
+    100% { transform: translateY(-28px); opacity: 0; }
+}
+
+.sparkle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: #fff6b0;
+    box-shadow: 0 0 6px #ffe36e;
+    animation: sparkle 0.9s ease-out forwards;
+}
+
+@keyframes sparkle {
+    from { transform: translate(0, 0) scale(1); opacity: 1; }
+    to   { transform: translate(var(--dx), var(--dy)) scale(0.3); opacity: 0; }
+}
+
+.screen.leveling {
+    animation: level-flash 0.5s steps(2, jump-none) 2;
+}
+
+@keyframes level-flash {
+    50% { box-shadow: inset 0 0 0 2px #ffe36e, inset 0 0 30px rgba(255, 227, 110, 0.45); }
+}
+
+/* Evolution scene: blue glow, a sphere of light closes around the old form, cracks, and shatters to reveal the new one. */
+.evolve-scene {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 50%, #3f8cff 0%, #1646b8 45%, #0a1f5c 100%);
+    animation: scene-in 0.5s ease-out both, scene-out 0.5s ease-in 3.4s forwards;
+}
+
+.evolve-scene[hidden] {
+    display: none;
+}
+
+@keyframes scene-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scene-out { to { opacity: 0; } }
+
+.rays {
+    position: absolute;
+    width: 220%;
+    aspect-ratio: 1;
+    background: repeating-conic-gradient(rgba(255, 255, 255, 0.16) 0deg 8deg, transparent 8deg 22deg);
+    animation: spin 6s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.orb {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 132px;
+    height: 132px;
+    border-radius: 50%;
+    animation: orb-form 0.8s ease-out 0.5s both, orb-shake 0.1s linear 1.5s 9, orb-burst 0.3s ease-in 2.4s forwards;
+}
+
+@keyframes orb-form {
+    from { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); background: transparent; transform: scale(1.6); }
+    to   {
+        box-shadow: 0 0 24px 6px rgba(190, 225, 255, 0.9), inset 0 0 26px rgba(255, 255, 255, 0.9);
+        background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0 35%, rgba(170, 215, 255, 0.85) 70%, rgba(120, 180, 255, 0.6));
+        transform: scale(1);
+    }
+}
+
+@keyframes orb-shake {
+    25% { transform: translate(-2px, 1px); }
+    75% { transform: translate(2px, -1px); }
+}
+
+@keyframes orb-burst { to { transform: scale(1.3); opacity: 0; } }
+
+.scene-sprite {
+    width: 80px;
+    height: 80px;
+    image-rendering: pixelated;
+    background-repeat: no-repeat;
+    background-size: 300% 400%;
+    background-position: 0 0;
+}
+
+.scene-sprite.egg {
+    background-size: 300% 100%;
+}
+
+/* The old form turns to a white silhouette as the sphere closes. */
+.scene-sprite.old {
+    animation: silhouette 0.6s ease-in 0.8s forwards;
+}
+
+@keyframes silhouette { to { filter: brightness(0) invert(1); opacity: 0.85; } }
+
+.cracks {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: #0b2a78;
+    stroke-width: 2.5;
+    stroke-linecap: square;
+    stroke-dasharray: 60;
+    stroke-dashoffset: 60;
+    animation: crack 0.8s steps(6, end) 1.6s forwards;
+}
+
+@keyframes crack { to { stroke-dashoffset: 0; } }
+
+.shards {
+    position: absolute;
+    width: 0;
+    height: 0;
+}
+
+.shards i {
+    position: absolute;
+    width: 26px;
+    height: 20px;
+    background: rgba(225, 242, 255, 0.95);
+    clip-path: polygon(0 0, 100% 30%, 60% 100%);
+    opacity: 0;
+    animation: shard 0.8s ease-out 2.45s forwards;
+}
+
+.shards i:nth-child(1) { --sx: -90px; --sy: -70px; --r: -80deg; }
+.shards i:nth-child(2) { --sx: 90px; --sy: -60px; --r: 70deg; }
+.shards i:nth-child(3) { --sx: -100px; --sy: 30px; --r: -140deg; }
+.shards i:nth-child(4) { --sx: 100px; --sy: 40px; --r: 150deg; }
+.shards i:nth-child(5) { --sx: -30px; --sy: 100px; --r: 200deg; }
+.shards i:nth-child(6) { --sx: 40px; --sy: -100px; --r: -200deg; }
+
+@keyframes shard {
+    0%   { transform: translate(-13px, -10px) rotate(0); opacity: 1; }
+    100% { transform: translate(var(--sx), var(--sy)) rotate(var(--r)); opacity: 0; }
+}
+
+.scene-sprite.new {
+    position: absolute;
+    opacity: 0;
+    animation: reveal 0.5s steps(4, end) 2.55s forwards;
+}
+
+@keyframes reveal {
+    from { opacity: 0; transform: scale(0.6); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+.scene-caption {
+    position: absolute;
+    bottom: 22px;
+    margin: 0;
+    color: #fff;
+    font-size: 14px;
+    text-shadow: 0 2px 0 #0a1f5c;
+    opacity: 0;
+    animation: reveal 0.4s steps(4, end) 2.75s forwards;
+}
+
+.flash {
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    opacity: 0;
+    animation: flash 0.35s ease-out 2.4s;
+}
+
+@keyframes flash {
+    0%   { opacity: 0; }
+    30%  { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .emote,
+    .float,
+    .level-up,
+    .sparkle,
+    .screen.leveling,
+    .rays,
+    .orb,
+    .scene-sprite.old,
+    .cracks,
+    .shards i,
+    .flash {
+        animation: none;
+    }
+    .scene-sprite.old,
+    .cracks,
+    .shards {
+        display: none;
+    }
+    .scene-sprite.new,
+    .scene-caption {
+        animation: scene-in 0.6s ease-out forwards;
     }
 }

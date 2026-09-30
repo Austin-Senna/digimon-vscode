@@ -5,16 +5,18 @@ const MINUTE = 60 * SECOND;
 
 export const RULES = {
     /**
-     * Cumulative XP needed to leave each stage, tuned for roughly 300 XP per active hour (your coding plus Claude's)
-     * and about 5 active hours a day: Child after ~4 hours, Adult after ~a week, Ultimate after ~a month.
+     * Reaching level L takes 15 * (L - 1)^2 total XP, so each level costs a little more than the last and levels
+     * never run out. At roughly 300 XP per active hour: Lv 10 in ~4 hours, Lv 25 in ~a week, Lv 50 in ~a month.
      */
-    xpToEvolve: {
-        digitama: 15,
-        babyI: 150,
-        babyII: 1_200,
-        child: 10_000,
-        adult: 20_000,
-        perfect: 40_000,
+    xpPerLevelUnit: 15,
+    /** Level at which each stage evolves. A Child at its level waits for the player to choose its path. */
+    evolveAtLevel: {
+        digitama: 2,
+        babyI: 4,
+        babyII: 10,
+        child: 25,
+        adult: 35,
+        perfect: 50,
     } as Record<Exclude<Stage, 'ultimate'>, number>,
     maxFullness: 100,
     maxEnergy: 100,
@@ -89,6 +91,7 @@ export type PetEvent =
     | { kind: 'refused' }
     | { kind: 'starving' }
     | { kind: 'readyToChoose' }
+    | { kind: 'leveledUp'; level: number }
     | { kind: 'exhausted' }
     | { kind: 'woke' };
 
@@ -157,14 +160,24 @@ export function mood(state: PetState,
     return 'happy';
 }
 
-/** XP needed to leave the current stage, or null at the final stage. */
-export function xpForNextStage(state: PetState): number | null {
-    return state.stage === 'ultimate' ? null : RULES.xpToEvolve[state.stage];
+/** Total XP needed to reach `level`. */
+export function xpForLevel(level: number): number {
+    return RULES.xpPerLevelUnit * (level - 1) ** 2;
 }
 
-/** A Child with enough XP waits for the player to pick its Adult path instead of evolving on its own. */
+/** Current level from total XP; starts at 1 and has no cap. */
+export function levelOf(xp: number): number {
+    return Math.floor(Math.sqrt(Math.max(0, xp) / RULES.xpPerLevelUnit)) + 1;
+}
+
+/** Level at which the current stage evolves, or null once it is Ultimate. */
+export function nextEvolutionLevel(state: PetState): number | null {
+    return state.stage === 'ultimate' ? null : RULES.evolveAtLevel[state.stage];
+}
+
+/** A Child at its evolution level waits for the player to pick its Adult path instead of evolving on its own. */
 export function isReadyToChoose(state: PetState): boolean {
-    return state.stage === 'child' && state.xp >= RULES.xpToEvolve.child && state.fullness > 0;
+    return state.stage === 'child' && levelOf(state.xp) >= RULES.evolveAtLevel.child && state.fullness > 0;
 }
 
 /** Evolve a waiting Child into the chosen Adult; the branch then fixes its Perfect and Ultimate forms. */
@@ -234,6 +247,9 @@ export function recordActivity(state: PetState,
         }
         next = { ...next, xp: state.xp + xp, energy };
     }
+    if (levelOf(next.xp) > levelOf(state.xp)) {
+        events.push({ kind: 'leveledUp', level: levelOf(next.xp) });
+    }
     if (isReadyToChoose(next) && !isReadyToChoose(state)) {
         events.push({ kind: 'readyToChoose' });
     }
@@ -301,8 +317,8 @@ export function parseState(raw: unknown): PetState | undefined {
 
 /** Automatic evolution for every stage except Child, which waits for `chooseBranch`. */
 function evolve(state: PetState): Update {
-    const threshold = xpForNextStage(state);
-    if (threshold === null || state.xp < threshold || state.fullness <= 0 || state.stage === 'child') {
+    const level = nextEvolutionLevel(state);
+    if (level === null || levelOf(state.xp) < level || state.fullness <= 0 || state.stage === 'child') {
         return { state, events: [] };
     }
     const next: PetState = { ...state, stage: STAGES[STAGES.indexOf(state.stage) + 1] };
