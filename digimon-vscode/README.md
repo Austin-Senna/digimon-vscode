@@ -20,7 +20,11 @@ Run **Digimon: Connect Claude Code** (or accept the prompt on first start). From
 
 Its screen shows "Claude is working" while a session runs. When Claude is waiting on a permission prompt or your answer, it blinks **"Claude needs you"**. Click it to jump straight to the terminal that session is running in.
 
-**It never slows Claude down.** The hooks run in the background (`async`), so Claude Code never waits on them. Each one is a ~40 ms script that appends one line to a local file and always exits cleanly. It records only the event type, tool name, session id, folder, and time; never your prompts, code, or tool output. Connecting asks first, backs up `~/.claude/settings.json`, and **Digimon: Disconnect Claude Code** undoes it. Requires `python3`.
+**It never slows Claude down.** The hooks run in the background, so Claude Code never waits on them. Each one takes about 40 milliseconds, appends one line to a local file, and always exits cleanly.
+
+**It only records what the pet needs:** the event type, tool name, session id, folder, and time. Never your prompts, code, or tool output.
+
+Connecting asks first and backs up your Claude settings file. **Digimon: Disconnect Claude Code** undoes it. Requires Python 3.
 
 ## It grows
 
