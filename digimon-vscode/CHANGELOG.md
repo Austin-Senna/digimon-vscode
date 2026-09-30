@@ -1,5 +1,10 @@
 # Change Log
 
+## [0.1.1] - 2026-09-29
+
+- New hatching-egg icon.
+- Fix README images and formatting on the Marketplace listing.
+
 ## [0.1.0] - 2026-09-29
 
 First release.
