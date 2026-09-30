@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 import type { DigimonApi } from '../extension';
 
 async function activateExtension(): Promise<DigimonApi> {
-	const extension = vscode.extensions.all.find(candidate => candidate.packageJSON.name === 'digimon-vscode');
+	const extension = vscode.extensions.all.find(candidate => candidate.packageJSON.name === 'digimon-buddy');
 	assert.ok(extension, 'extension is installed');
 	return extension.activate() as Promise<DigimonApi>;
 }

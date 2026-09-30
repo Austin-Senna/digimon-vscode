@@ -1,5 +1,5 @@
 {
-  "name": "digimon-vscode",
+  "name": "digimon-buddy",
   "displayName": "Digimon Buddy",
   "description": "A V-Pet Digimon in your sidebar that grows while you and Claude Code write code.",
   "version": "0.1.0",
