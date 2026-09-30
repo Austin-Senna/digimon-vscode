@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { DigimonPlaygroundProvider, savedAppearance } from './DigimonPlaygroundProvider';
-import { Preset, SCREENS, SHELLS } from './appearance';
+import { Preset, SCREENS } from './appearance';
 import { PetController } from './PetController';
 import { trackActivity } from './activity';
 import { connectClaude } from './claude/bridge';
@@ -70,17 +70,13 @@ async function pickFood(controller: PetController): Promise<void> {
 	}
 }
 
-/** Pick a shell, then a screen, previewing each option live; nothing is saved until both are accepted. */
+/** Pick a screen background, previewing each option live; nothing is saved until one is accepted. */
 async function customize(provider: DigimonPlaygroundProvider): Promise<void> {
 	const saved = savedAppearance();
-	const shell = await pickPreset(SHELLS, saved.shell, 'Digivice color', id => provider.previewAppearance({ ...saved, shell: id }));
-	const screen = shell && await pickPreset(SCREENS, saved.screen, 'Screen background',
-		id => provider.previewAppearance({ shell, screen: id }));
+	const screen = await pickPreset(SCREENS, saved.screen, 'Screen background', id => provider.previewAppearance({ screen: id }));
 	provider.previewAppearance(undefined);
-	if (shell && screen) {
-		const config = vscode.workspace.getConfiguration('digimon.appearance');
-		await config.update('shell', shell, vscode.ConfigurationTarget.Global);
-		await config.update('screen', screen, vscode.ConfigurationTarget.Global);
+	if (screen) {
+		await vscode.workspace.getConfiguration('digimon.appearance').update('screen', screen, vscode.ConfigurationTarget.Global);
 	}
 }
 

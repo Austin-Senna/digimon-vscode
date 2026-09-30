@@ -41,12 +41,9 @@ You start with 3 meat. Effort counts even while your Digimon is starving and ear
 
 Every 3,000 XP of effort earns a new egg, preferring lines you do not have yet. Up to 6 buddies fit in your roster; click one to make it active. Only the active buddy gets hungry, sleeps, and earns XP; the others stay frozen exactly as you left them. When the roster is full, new eggs wait until you release a buddy (**Digimon: Release Buddy**, which asks first).
 
-## Customize your Digivice
+## Screen background
 
-Run **Digimon: Customize Digivice** (the paint can in the view's title bar) to pick a shell color and a screen background; each option previews live as you move through the list. The choices are regular settings, `digimon.appearance.shell` and `digimon.appearance.screen`, so they sync with the rest of your VS Code settings.
-
-- Shells: Silver, Orange, Blue, Pink, Purple, Green, Yellow, Black, or no shell.
-- Screens: Dark LCD, Classic LCD, Night sky, Day sky, Sunset, Meadow.
+Run **Digimon: Change Screen Background** (the paint can in the view's title bar) to pick what your Digimon stands on: Dark LCD, Classic LCD, Night sky, Day sky, Sunset, or Meadow. Each option previews live as you move through the list. The choice is the `digimon.appearance.screen` setting, so it syncs with the rest of your VS Code settings.
 
 ## Your save
 
@@ -63,12 +60,12 @@ Sessions whose working directory is inside this window's workspace count as acti
 | Claude event | Effect |
 | --- | --- |
 | You send a prompt | 3 XP |
-| A tool call succeeds | 1 XP, sharing the one-per-second cap with your edits |
+| Each minute a session is working | 2 XP per session |
 | Claude finishes its turn | The pet cheers |
 | A tool call fails | The pet refuses |
 | An API error ends the turn | The pet looks sad |
 
-While a session runs, the screen shows "Claude is working", or a blinking "Claude needs you" when Claude waits on a permission prompt or your input.
+While a session runs, the screen shows "Claude is working", or a blinking "Claude needs you" when Claude waits on a permission prompt or your input. Click it (or run **Digimon: Show Waiting Claude Session**) to jump to the terminal that session runs in; if it runs elsewhere, such as the Claude panel, you get the folder name instead.
 
 **It does not slow Claude down.** The hooks are `async`, which Claude Code runs in the background without waiting and whose output it ignores. Each one is a ~40 ms stdlib-only Python script that appends one short line to a file and always exits 0.
 
@@ -83,7 +80,7 @@ While a session runs, the screen shows "Claude is working", or a blinking "Claud
 
 ## Settings
 
-- `digimon.appearance.shell` / `digimon.appearance.screen`: Digivice color and screen background.
+- `digimon.appearance.screen`: the screen background behind your Digimon.
 - `digimon.notifications`: show notifications for evolution, starvation, and exhaustion. Default `true`.
 - `digimon.claude.enabled`: react to Claude Code sessions in this workspace. Default `true`.
 - `digimon.claude.eventsPath`: event log written by the digimon-claude hooks. Default `~/.claude/digimon/events.jsonl`.
@@ -107,4 +104,4 @@ Game rules live in `src/model/pet.ts` (`RULES`) as pure functions with no `vscod
 
 This is an unofficial fan project. It is not affiliated with, endorsed by, or sponsored by Bandai or Toei Animation. Digimon and all related names are trademarks of Bandai.
 
-Numbers use the [Silkscreen](https://github.com/googlefonts/silkscreen) pixel font, under the SIL Open Font License (`media/fonts/OFL.txt`). Sprites come from Tortoiseshel's Digimon sprite collection and remain the property of their respective owners; they are not covered by this project's MIT license, which applies to the source code only. Rights holders who want anything removed can [open an issue](https://github.com/Austin-Senna/digimon-vscode/issues) and it will be taken down.
+The view uses the [Pixelify Sans](https://github.com/eifetx/Pixelify-Sans) pixel font, under the SIL Open Font License (`media/fonts/OFL.txt`). Sprites come from Tortoiseshel's Digimon sprite collection and remain the property of their respective owners; they are not covered by this project's MIT license, which applies to the source code only. Rights holders who want anything removed can [open an issue](https://github.com/Austin-Senna/digimon-vscode/issues) and it will be taken down.

@@ -13,6 +13,7 @@
 | `tool` | Tool name, only on `tool_*` events. |
 | `subagent` | True when a subagent, not the main agent, triggered the event. |
 | `cwd` | Session working directory, for per-workspace filtering. |
+| `ppid` | Optional. The hook's parent process (Claude Code, or a shell it spawned), used to find the terminal a session runs in. |
 
 | `event` | Hook | Meaning |
 |---|---|---|

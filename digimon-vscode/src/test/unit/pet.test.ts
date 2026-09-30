@@ -111,12 +111,10 @@ suite('pet model', () => {
         assert.strictEqual(later.state.xp, first.state.xp + RULES.xpPerActivity.edit);
     });
 
-    test('Claude tool calls share the active-second budget with edits', () => {
-        const state = hatched({ lastActivityAt: T0 });
-        const edited = recordActivity(state, 'edit', T0 + 1).state;
-        assert.strictEqual(recordActivity(edited, 'agentTool', T0 + 2).state, edited);
-        const later = recordActivity(edited, 'agentTool', T0 + 1 + RULES.activeSecondCooldownMs).state;
-        assert.strictEqual(later.xp, edited.xp + RULES.xpPerActivity.agentTool);
+    test('Claude working minutes are never throttled by edits', () => {
+        const edited = recordActivity(hatched({ lastActivityAt: T0 }), 'edit', T0 + 1).state;
+        const minute = recordActivity(edited, 'claudeMinute', T0 + 2).state;
+        assert.strictEqual(minute.xp, edited.xp + RULES.xpPerActivity.claudeMinute);
     });
 
     test('prompts are not throttled', () => {

@@ -19,11 +19,14 @@ const MOOD_LABELS: Record<Mood, string> = {
     happy: 'Happy',
 };
 
-const CLAUDE_LABELS: Record<ClaudeStatus, string> = {
-    idle: '',
-    working: 'Claude is working',
-    waiting: 'Claude needs you',
-};
+function claudeLabel(status: ClaudeStatus,
+    waiting: number,
+): string {
+    if (status === 'waiting') {
+        return waiting > 1 ? `${waiting} Claude sessions need you` : 'Claude needs you';
+    }
+    return status === 'working' ? 'Claude is working' : '';
+}
 
 const EVENT_ANIMATIONS: Partial<Record<GameEvent['kind'], Animation>> = {
     ate: 'eat',
@@ -37,6 +40,7 @@ const EVENT_ANIMATIONS: Partial<Record<GameEvent['kind'], Animation>> = {
 export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, ClaudeListener, vscode.Disposable {
     private _view: vscode.WebviewView | undefined;
     private _claudeStatus: ClaudeStatus = 'idle';
+    private _claudeWaiting = 0;
     /** Shown instead of the saved appearance while the Customize picker is open. */
     private _preview: Appearance | undefined;
     private readonly _subscriptions: vscode.Disposable[];
@@ -77,6 +81,8 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
                 this._controller.feed(message.food as FoodKind);
             } else if (message?.type === 'choose' && (BRANCHES as readonly unknown[]).includes(message.branch)) {
                 this._controller.choose(message.branch as Branch);
+            } else if (message?.type === 'focusClaude') {
+                void vscode.commands.executeCommand('digimon.focusClaude');
             } else if (message?.type === 'switch' && typeof message.id === 'string') {
                 this._controller.switchTo(message.id);
             }
@@ -86,8 +92,11 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
         });
     }
 
-    setClaudeStatus(status: ClaudeStatus): void {
+    setClaudeStatus(status: ClaudeStatus,
+        waiting: number,
+    ): void {
         this._claudeStatus = status;
+        this._claudeWaiting = waiting;
         this._postState();
     }
 
@@ -131,7 +140,7 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             appearance: this._preview ?? savedAppearance(),
             age: formatDuration(state.ageMs),
             claudeStatus: this._claudeStatus,
-            claudeLabel: CLAUDE_LABELS[this._claudeStatus],
+            claudeLabel: claudeLabel(this._claudeStatus, this._claudeWaiting),
             food: (Object.keys(FOODS) as FoodKind[]).map(kind => ({
                 kind,
                 name: FOODS[kind].name,
@@ -199,7 +208,7 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
 
 export function savedAppearance(): Appearance {
     const config = vscode.workspace.getConfiguration('digimon.appearance');
-    return resolveAppearance(config.get('shell'), config.get('screen'));
+    return resolveAppearance(config.get('screen'));
 }
 
 function foodEffect(kind: FoodKind): string {

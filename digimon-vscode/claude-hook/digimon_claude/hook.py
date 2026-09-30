@@ -4,9 +4,11 @@ Registered for several hook events in ~/.claude/settings.json. Each call reads
 the hook JSON on stdin and appends at most one line to the events log:
 
     {"v": 1, "t": <epoch ms>, "session": "...", "event": "<kind>",
-     "tool": "Bash", "subagent": false, "cwd": "..."}
+     "tool": "Bash", "subagent": false, "cwd": "...", "ppid": 4242}
 
-`tool` is present only for tool events. Event kinds:
+`tool` is present only for tool events. `ppid` is this hook's parent process
+(Claude Code, or a shell it spawned), so a reader can find the terminal the
+session runs in. Event kinds:
     session_start, session_end, prompt, tool_start, tool_done, tool_failed,
     needs_input, stop, error
 
@@ -48,6 +50,7 @@ def events_path() -> Path:
 
 def to_event(payload: dict,
     now_ms: int,
+    ppid: int | None = None,
 ) -> dict | None:
     """Map one hook payload to a pet event, or None if the pet should ignore it."""
     name = payload.get("hook_event_name")
@@ -65,6 +68,8 @@ def to_event(payload: dict,
         "subagent": bool(payload.get("agent_id")),
         "cwd": payload.get("cwd", ""),
     }
+    if ppid is not None:
+        event["ppid"] = ppid
     if kind in TOOL_EVENTS:
         event["tool"] = payload.get("tool_name", "")
     return event
@@ -97,7 +102,7 @@ def append(event: dict,
 def main() -> int:
     """Hook entry point."""
     try:
-        event = to_event(json.load(sys.stdin), int(time.time() * 1000))
+        event = to_event(json.load(sys.stdin), int(time.time() * 1000), os.getppid())
         if event is not None:
             append(event, events_path())
     except Exception:

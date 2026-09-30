@@ -79,6 +79,12 @@
         }
     });
 
+    $('claude').addEventListener('click', () => {
+        if (current?.claudeStatus === 'waiting') {
+            vscode.postMessage({ type: 'focusClaude' });
+        }
+    });
+
     $('paths').addEventListener('click', event => {
         const button = event.target.closest('.path');
         if (button) {
@@ -269,11 +275,11 @@
 
         $('status').textContent = state.isEgg ? '' : state.moodLabel;
         $('claude').textContent = state.claudeLabel;
+        $('claude').disabled = state.claudeStatus !== 'waiting';
         screen.dataset.claude = state.claudeStatus;
         $('name').textContent = state.name;
         $('stage').textContent = state.stage;
 
-        device.dataset.shell = state.appearance.shell;
         device.dataset.screen = state.appearance.screen;
         renderProgress(state);
 

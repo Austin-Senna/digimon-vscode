@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -63,6 +64,17 @@ def run_script(stdin: str, log: Path) -> subprocess.CompletedProcess:
     # Same flags as the installed command: isolated mode, no site-packages.
     return subprocess.run([sys.executable, "-I", "-S", str(HOOK_SCRIPT)], input=stdin, text=True,
                           capture_output=True, env={"DIGIMON_EVENTS": str(log)})
+
+
+def test_ppid_is_recorded_when_given():
+    assert hook.to_event(payload("Stop"), 123, ppid=4242)["ppid"] == 4242
+    assert "ppid" not in hook.to_event(payload("Stop"), 123)
+
+
+def test_script_records_its_parent_process(tmp_path: Path):
+    log = tmp_path / "events.jsonl"
+    run_script(json.dumps(payload("Notification", notification_type="permission_prompt")), log)
+    assert json.loads(log.read_text())["ppid"] == os.getpid()
 
 
 def test_script_runs_standalone_and_appends(tmp_path: Path):

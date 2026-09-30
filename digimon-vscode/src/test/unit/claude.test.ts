@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { ClaudeEvent, SESSION_STALE_MS, SessionTracker, isWithin, parseEventLine } from '../../claude/events';
+import { ClaudeEvent, MAX_WORK_STEP_MS, SESSION_STALE_MS, SessionTracker, WorkTimer, isDescendant, isWithin, parseEventLine } from '../../claude/events';
 import { LineTailer } from '../../claude/tailer';
 
 const T0 = 1_790_708_048_547;
@@ -52,6 +52,44 @@ suite('claude events', () => {
         assert.strictEqual(tracker.status(T0), 'waiting');
         tracker.apply(event({ session: 'b', event: 'tool_start' }));
         assert.strictEqual(tracker.status(T0), 'working');
+    });
+
+    test('parses the optional parent pid and ignores bad values', () => {
+        assert.strictEqual(parseEventLine(line({ ppid: 4242 }))!.ppid, 4242);
+        assert.strictEqual(parseEventLine(line({ ppid: -1 }))!.ppid, undefined);
+        assert.strictEqual(parseEventLine(line({ ppid: '4242' }))!.ppid, undefined);
+    });
+
+    test('tracker lists waiting sessions with their folder and pid', () => {
+        const tracker = new SessionTracker();
+        tracker.apply(event({ session: 'a', event: 'prompt', ppid: 10, cwd: '/work/a' }));
+        tracker.apply(event({ session: 'a', event: 'needs_input', cwd: '/work/a' }));
+        assert.deepStrictEqual(tracker.sessions(T0), [{ session: 'a', status: 'waiting', cwd: '/work/a', ppid: 10, lastSeen: T0 }]);
+    });
+
+    test('work timer credits whole minutes per working session', () => {
+        const timer = new WorkTimer(60_000);
+        assert.strictEqual(timer.advance(T0, 1), 0);
+        assert.strictEqual(timer.advance(T0 + 30_000, 1), 0);
+        assert.strictEqual(timer.advance(T0 + 60_000, 0), 0);
+        assert.strictEqual(timer.advance(T0 + 90_000, 1), 1);
+        assert.strictEqual(timer.advance(T0 + 120_000, 2), 1);
+        assert.strictEqual(timer.advance(T0 + 150_000, 2), 1);
+    });
+
+    test('work timer caps a long gap, e.g. after sleep', () => {
+        const timer = new WorkTimer(60_000);
+        timer.advance(T0, 1);
+        assert.strictEqual(timer.advance(T0 + 60 * 60_000, 1), 0);
+        assert.strictEqual(MAX_WORK_STEP_MS < 60_000, true);
+    });
+
+    test('isDescendant walks up the process tree', () => {
+        const parents = new Map([[40, 30], [30, 20], [20, 1], [99, 1]]);
+        assert.ok(isDescendant(40, 20, parents));
+        assert.ok(isDescendant(20, 20, parents));
+        assert.ok(!isDescendant(99, 20, parents));
+        assert.strictEqual(isDescendant(40, 20, new Map([[40, 30], [30, 40]])), false, 'a cycle ends the walk');
     });
 
     test('silent sessions expire', () => {

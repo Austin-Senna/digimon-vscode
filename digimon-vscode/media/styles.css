@@ -1,6 +1,7 @@
 @font-face {
-    font-family: 'Silkscreen';
-    src: url('fonts/Silkscreen-Regular.ttf') format('truetype');
+    font-family: 'Pixelify Sans';
+    src: url('fonts/PixelifySans.ttf') format('truetype');
+    font-weight: 400 700;
     font-display: block;
 }
 
@@ -73,17 +74,6 @@
     --scene-size: 100% 100%, 100% 100%;
 }
 
-/* Digivice shell colors. */
-.device[data-shell="silver"] { --shell: #c9ced6; }
-.device[data-shell="orange"] { --shell: #f08a24; }
-.device[data-shell="blue"] { --shell: #3a78d8; }
-.device[data-shell="pink"] { --shell: #e889b5; }
-.device[data-shell="purple"] { --shell: #8a5cc7; }
-.device[data-shell="green"] { --shell: #4caf6a; }
-.device[data-shell="yellow"] { --shell: #f2c230; }
-.device[data-shell="black"] { --shell: #2a2b2f; }
-.device[data-shell="none"] { --shell: transparent; }
-
 * {
     box-sizing: border-box;
 }
@@ -98,8 +88,13 @@ body {
     padding: 12px;
     background: transparent;
     color: var(--vscode-foreground);
-    font-family: var(--vscode-font-family);
-    font-size: var(--vscode-font-size);
+    /* One pixel face for everything in the Digivice view, falling back to the editor UI font. */
+    font-family: 'Pixelify Sans', var(--vscode-font-family, sans-serif);
+    font-size: 13px;
+}
+
+button {
+    font-family: inherit;
 }
 
 .sprite-defs {
@@ -115,32 +110,11 @@ body {
     height: 100%;
 }
 
-/* The one loud element: the Digivice. */
-.shell {
-    display: flex;
-    flex: 1;
-    min-height: 160px;
-    padding: 10px;
-    border-radius: 22px;
-    background: linear-gradient(160deg,
-        color-mix(in srgb, var(--shell), white 28%),
-        var(--shell) 45%,
-        color-mix(in srgb, var(--shell), black 22%));
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.35),
-        inset 0 -2px 0 rgba(0, 0, 0, 0.25),
-        0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.device[data-shell="none"] .shell {
-    padding: 0;
-    background: none;
-    box-shadow: none;
-}
-
+/* The one loud element: the Digivice screen. */
 .screen {
     position: relative;
     flex: 1;
+    min-height: 160px;
     overflow: hidden;
     border-radius: 12px;
     background-color: var(--lcd);
@@ -160,7 +134,7 @@ body {
     top: 10px;
     margin: 0;
     color: var(--lcd-ink);
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .screen-status {
@@ -170,7 +144,24 @@ body {
 
 .claude-status {
     right: 12px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: inherit;
     opacity: 0.65;
+    pointer-events: none;
+}
+
+.screen[data-claude="waiting"] .claude-status {
+    pointer-events: auto;
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+}
+
+.claude-status:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
 }
 
 .screen[data-claude="waiting"] .claude-status {
@@ -248,12 +239,8 @@ body {
     50% { transform: translateY(-4px); opacity: 0.6; }
 }
 
-/* Readout: quiet and theme-native. Numbers use the pixel face; words use the editor's UI font. */
-.num,
-.caption .num {
-    font-family: 'Silkscreen', var(--vscode-editor-font-family, monospace);
-    font-size: 10px;
-    letter-spacing: 0.02em;
+/* Readout: quiet and theme-native. */
+.num {
     font-variant-numeric: tabular-nums;
 }
 
@@ -272,7 +259,7 @@ body {
 
 .identity h1 {
     margin: 0;
-    font-size: 15px;
+    font-size: 18px;
     font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -282,13 +269,13 @@ body {
 .stage {
     flex-shrink: 0;
     color: var(--vscode-descriptionForeground);
-    font-size: 12px;
+    font-size: 13px;
 }
 
 .caption {
     margin: 0;
     color: var(--vscode-descriptionForeground);
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .progress {
@@ -334,7 +321,7 @@ body {
     gap: 6px;
     margin: 0;
     color: var(--vscode-descriptionForeground);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 400;
 }
 
@@ -356,7 +343,7 @@ body {
 .meters dt {
     margin-bottom: 5px;
     color: var(--vscode-descriptionForeground);
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .hearts {
@@ -411,7 +398,7 @@ body {
 
 .path small {
     opacity: 0.75;
-    font-size: 10px;
+    font-size: 11px;
     line-height: 1.3;
 }
 
@@ -444,7 +431,7 @@ body {
     background: color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
     color: inherit;
     font: inherit;
-    font-size: 11px;
+    font-size: 12px;
     cursor: pointer;
 }
 
@@ -517,7 +504,7 @@ body {
     display: flex;
     justify-content: flex-end;
     color: var(--vscode-descriptionForeground);
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .device.egg .meters,

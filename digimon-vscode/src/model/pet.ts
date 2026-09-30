@@ -24,9 +24,10 @@ export const RULES = {
     sleepAfterMs: 5 * MINUTE,
     /** Time only advances while VS Code is open; longer gaps between ticks are clamped to this. */
     maxTickGapMs: 5 * MINUTE,
-    /** Edits and Claude tool calls share one budget: at most one XP per active second. */
+    /** Edits earn at most one XP per active second. */
     activeSecondCooldownMs: SECOND,
-    xpPerActivity: { edit: 1, save: 5, commit: 25, prompt: 3, agentTool: 1 } as Record<ActivityKind, number>,
+    /** `claudeMinute` is one minute of a Claude session working in this workspace. */
+    xpPerActivity: { edit: 1, save: 5, commit: 25, prompt: 3, claudeMinute: 2 } as Record<ActivityKind, number>,
     exhaustedXpMultiplier: 0.5,
 };
 
@@ -45,14 +46,14 @@ export interface PetState {
     readonly bornAt: number;
     readonly lastTickAt: number;
     readonly lastActivityAt: number;
-    /** Last time an active-second activity (edit or Claude tool call) earned XP. */
+    /** Last time an edit earned XP. */
     readonly lastEditXpAt: number;
 }
 
-/** `prompt` and `agentTool` come from Claude Code sessions working in this workspace. */
-export type ActivityKind = 'edit' | 'save' | 'commit' | 'prompt' | 'agentTool';
+/** `prompt` and `claudeMinute` come from Claude Code sessions working in this workspace. */
+export type ActivityKind = 'edit' | 'save' | 'commit' | 'prompt' | 'claudeMinute';
 
-const ACTIVE_SECOND_KINDS: ReadonlySet<ActivityKind> = new Set<ActivityKind>(['edit', 'agentTool']);
+const ACTIVE_SECOND_KINDS: ReadonlySet<ActivityKind> = new Set<ActivityKind>(['edit']);
 
 export type PetEvent =
     | { kind: 'evolved'; from: string; to: string; stage: Stage }

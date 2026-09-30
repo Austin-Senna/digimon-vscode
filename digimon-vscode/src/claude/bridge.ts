@@ -2,13 +2,15 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { PetController } from '../PetController';
-import { ClaudeEvent, ClaudeStatus, SessionTracker, isWithin, parseEventLine } from './events';
+import { ClaudeEvent, ClaudeStatus, SessionTracker, WorkTimer, isWithin, parseEventLine } from './events';
 import { LineTailer } from './tailer';
+import { terminalRunning } from './terminal';
 
 export type ClaudeAnimation = 'happy' | 'refuse' | 'sad';
 
 export interface ClaudeListener {
-    setClaudeStatus(status: ClaudeStatus): void;
+    /** `waiting` is how many sessions in this workspace are blocked on the user. */
+    setClaudeStatus(status: ClaudeStatus, waiting: number): void;
     play(animation: ClaudeAnimation): void;
 }
 
@@ -21,12 +23,12 @@ const STATUS_REFRESH_MS = 15_000;
 
 /**
  * Feeds Claude Code sessions working in this window's workspace into the pet.
- * Events come from the digimon-claude hooks via an append-only JSONL log.
+ * Events come from the Claude hook (claude-hook/) via an append-only JSONL log.
  */
 export function connectClaude(controller: PetController,
     listener: ClaudeListener,
 ): vscode.Disposable {
-    let session: vscode.Disposable | undefined;
+    let session: ReturnType<typeof start>;
     const restart = () => {
         session?.dispose();
         session = start(controller, listener);
@@ -39,25 +41,34 @@ export function connectClaude(controller: PetController,
                 restart();
             }
         }),
+        vscode.commands.registerCommand('digimon.focusClaude', () => focusWaiting(session?.tracker)),
         new vscode.Disposable(() => session?.dispose()),
     );
 }
 
 function start(controller: PetController,
     listener: ClaudeListener,
-): vscode.Disposable | undefined {
+): (vscode.Disposable & { tracker: SessionTracker }) | undefined {
     const config = vscode.workspace.getConfiguration('digimon.claude');
     if (!config.get<boolean>('enabled', true)) {
-        listener.setClaudeStatus('idle');
+        listener.setClaudeStatus('idle', 0);
         return undefined;
     }
     const tracker = new SessionTracker();
-    let status: ClaudeStatus = 'idle';
-    const refreshStatus = () => {
-        const next = tracker.status(Date.now());
-        if (next !== status) {
-            status = next;
-            listener.setClaudeStatus(status);
+    const work = new WorkTimer();
+    let shown = '';
+    const refresh = () => {
+        const now = Date.now();
+        const sessions = tracker.sessions(now);
+        const working = sessions.filter(session => session.status === 'working').length;
+        for (let minute = work.advance(now, working); minute > 0; minute--) {
+            controller.recordActivity('claudeMinute');
+        }
+        const waiting = sessions.length - working;
+        const status = tracker.status(now);
+        if (`${status}:${waiting}` !== shown) {
+            shown = `${status}:${waiting}`;
+            listener.setClaudeStatus(status, waiting);
         }
     };
 
@@ -67,25 +78,42 @@ function start(controller: PetController,
         if (!event || !isWithin(event.cwd, folders)) {
             return;
         }
+        // Settle the time worked so far under the old status before this event changes it.
+        refresh();
         tracker.apply(event);
-        refreshStatus();
+        refresh();
         if (event.event === 'prompt') {
             controller.recordActivity('prompt');
-        } else if (event.event === 'tool_done') {
-            controller.recordActivity('agentTool');
         }
         const animation = ANIMATIONS[event.event];
         if (animation) {
             listener.play(animation);
         }
     });
-    const timer = setInterval(refreshStatus, STATUS_REFRESH_MS);
+    const timer = setInterval(refresh, STATUS_REFRESH_MS);
+    refresh();
 
-    return new vscode.Disposable(() => {
+    return Object.assign(new vscode.Disposable(() => {
         clearInterval(timer);
         tailer.dispose();
-        listener.setClaudeStatus('idle');
-    });
+        listener.setClaudeStatus('idle', 0);
+    }), { tracker });
+}
+
+/** Jump to the terminal running the most recent session that is waiting on the user. */
+async function focusWaiting(tracker: SessionTracker | undefined): Promise<void> {
+    const waiting = tracker?.sessions(Date.now()).find(session => session.status === 'waiting');
+    if (!waiting) {
+        void vscode.window.showInformationMessage('No Claude session in this workspace is waiting on you.');
+        return;
+    }
+    const terminal = waiting.ppid === undefined ? undefined : await terminalRunning(waiting.ppid);
+    if (terminal) {
+        terminal.show();
+        return;
+    }
+    void vscode.window.showInformationMessage(
+        `Claude is waiting in ${path.basename(waiting.cwd) || waiting.cwd}, outside this window's terminals (for example the Claude panel or another terminal app).`);
 }
 
 function expandHome(file: string): string {
