@@ -1,5 +1,7 @@
 # Digimon Buddy
 
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/AustinSenna.digimon-buddy?label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=AustinSenna.digimon-buddy)
+
 A V-Pet Digimon for VS Code's secondary side bar. It grows while you code, and while Claude Code codes in your workspace.
 
 <p align="center">
@@ -9,6 +11,8 @@ A V-Pet Digimon for VS Code's secondary side bar. It grows while you code, and w
 <p align="center">
 <img src="digimon-vscode/docs/images/evolution-line.png" alt="Agumon's line from egg to Ultimate: Agu Digitama, Zurumon, Koromon, Agumon, Greymon, MetalGreymon, WarGreymon" width="640">
 </p>
+
+**Install:** [Digimon Buddy on the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=AustinSenna.digimon-buddy), or search "Digimon Buddy" in VS Code's Extensions view.
 
 The extension lives in [`digimon-vscode/`](digimon-vscode): see its [README](digimon-vscode/README.md) for how it works, and [evolution lines](digimon-vscode/docs/evolution-lines.md) for every Digimon you can raise.
 
