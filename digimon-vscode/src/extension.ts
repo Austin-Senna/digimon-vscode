@@ -6,8 +6,8 @@ import { trackActivity } from './activity';
 import { connectClaude } from './claude/bridge';
 import { registerClaudeInstall } from './claude/install';
 import { GameEvent, GameState } from './model/game';
-import { FOODS, FoodKind, PetState, species } from './model/pet';
-import { STAGE_LABELS, displayName } from './model/species';
+import { FOODS, FoodKind, PetState, isReadyToChoose, species } from './model/pet';
+import { BRANCHES, STAGE_LABELS, displayName, findLine } from './model/species';
 import { GameStore } from './store';
 
 /** Pre-roster versions kept a single pet here; it is migrated into the save file once. */
@@ -32,6 +32,7 @@ export function activate(context: vscode.ExtensionContext): DigimonApi {
 		playgroundProvider,
 		vscode.window.registerWebviewViewProvider('digimonPlayground', playgroundProvider),
 		vscode.commands.registerCommand('digimon.feed', () => pickFood(controller)),
+		vscode.commands.registerCommand('digimon.chooseEvolution', () => pickEvolution(controller)),
 		vscode.commands.registerCommand('digimon.switchBuddy', () => pickBuddy(controller)),
 		vscode.commands.registerCommand('digimon.releaseBuddy', () => release(controller)),
 		vscode.commands.registerCommand('digimon.startOver', async () => {
@@ -64,6 +65,25 @@ async function pickFood(controller: PetController): Promise<void> {
 	const choice = await vscode.window.showQuickPick(items, { placeHolder: 'Feed your Digimon' });
 	if (choice) {
 		controller.feed(choice.food);
+	}
+}
+
+async function pickEvolution(controller: PetController): Promise<void> {
+	const pet = controller.state;
+	if (!isReadyToChoose(pet)) {
+		void vscode.window.showInformationMessage(pet.stage === 'child'
+			? 'Your Child is not ready to digivolve yet (it needs more XP, and it cannot evolve while starving).'
+			: 'Only a Child that has earned enough XP can choose its evolution.');
+		return;
+	}
+	const line = findLine(pet.lineId)!;
+	const items = BRANCHES.map(branch => {
+		const forms = (branch === 'good' ? line.good : line.bad).map(displayName);
+		return { label: forms[0], description: `then ${forms[1]}, then ${forms[2]}`, branch };
+	});
+	const choice = await vscode.window.showQuickPick(items, { placeHolder: `What should ${displayName(species(pet))} become?` });
+	if (choice) {
+		controller.choose(choice.branch);
 	}
 }
 
@@ -118,6 +138,13 @@ function notify(event: GameEvent): void {
 			);
 			break;
 		}
+		case 'readyToChoose':
+			void vscode.window.showInformationMessage('Your Digimon is ready to digivolve! Choose its path.', 'Choose').then(choice => {
+				if (choice === 'Choose') {
+					void vscode.commands.executeCommand('digimon.chooseEvolution');
+				}
+			});
+			break;
 		case 'eggEarned':
 			void vscode.window.showInformationMessage(event.waiting
 				? 'You earned a new egg, but your roster is full. Release a buddy to make room.'

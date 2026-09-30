@@ -5,8 +5,8 @@ import { PetController } from './PetController';
 import { ClaudeAnimation, ClaudeListener } from './claude/bridge';
 import { ClaudeStatus } from './claude/events';
 import { GameEvent, ROSTER, activeBuddy, milestoneProgress } from './model/game';
-import { FOODS, FoodKind, Mood, PetState, RULES, mood, species, xpForNextStage } from './model/pet';
-import { STAGE_LABELS, displayName, spritePath } from './model/species';
+import { FOODS, FoodKind, Mood, PetState, RULES, isReadyToChoose, mood, species, xpForNextStage } from './model/pet';
+import { BRANCHES, Branch, STAGE_LABELS, displayName, findLine, spritePath } from './model/species';
 
 type Animation = ClaudeAnimation | 'eat' | 'evolve';
 
@@ -65,6 +65,8 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
                 this._postState();
             } else if (message?.type === 'feed' && typeof message.food === 'string' && Object.hasOwn(FOODS, message.food)) {
                 this._controller.feed(message.food as FoodKind);
+            } else if (message?.type === 'choose' && (BRANCHES as readonly unknown[]).includes(message.branch)) {
+                this._controller.choose(message.branch as Branch);
             } else if (message?.type === 'switch' && typeof message.id === 'string') {
                 this._controller.switchTo(message.id);
             }
@@ -96,6 +98,7 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
         const game = this._controller.game;
         const state = activeBuddy(game);
         const currentMood = mood(state, now);
+        const ready = isReadyToChoose(state);
         void view.webview.postMessage({
             type: 'state',
             name: displayName(species(state)),
@@ -103,12 +106,12 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             spriteUri: this._spriteUri(view.webview, state),
             isEgg: state.stage === 'digitama',
             mood: currentMood,
-            moodLabel: MOOD_LABELS[currentMood],
+            moodLabel: ready && currentMood !== 'sleeping' ? 'Ready to digivolve' : MOOD_LABELS[currentMood],
+            choice: ready ? this._choice(view.webview, state) : null,
             fullness: state.fullness / RULES.maxFullness,
             energy: state.energy / RULES.maxEnergy,
             xp: Math.floor(state.xp),
             xpNext: xpForNextStage(state),
-            careMistakes: state.careMistakes,
             age: formatDuration(state.ageMs),
             claudeStatus: this._claudeStatus,
             claudeLabel: CLAUDE_LABELS[this._claudeStatus],
@@ -131,6 +134,22 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             })),
             maxBuddies: ROSTER.maxBuddies,
             pendingEggs: game.pendingEggs,
+        });
+    }
+
+    /** Both Adult paths for a waiting Child, with the Adult sprite to preview. */
+    private _choice(webview: vscode.Webview,
+        state: PetState,
+    ) {
+        const line = findLine(state.lineId)!;
+        return BRANCHES.map(branch => {
+            const forms = branch === 'good' ? line.good : line.bad;
+            return {
+                branch,
+                name: displayName(forms[0]),
+                next: forms.slice(1).map(displayName),
+                spriteUri: webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, ...spritePath('adult', forms[0]))).toString(),
+            };
         });
     }
 

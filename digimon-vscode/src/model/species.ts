@@ -22,8 +22,10 @@ const STAGE_FOLDERS: Record<Stage, string> = {
     ultimate: 'Ultimate-Super Ultimate',
 };
 
-/** Which late-game path a pet takes, decided by care mistakes when a Child evolves. */
-export type Branch = 'good' | 'bad' | 'neglected';
+/** Which late-game path a pet takes, chosen by the player when its Child evolves. */
+export type Branch = 'good' | 'bad';
+
+export const BRANCHES: readonly Branch[] = ['good', 'bad'];
 
 /** Adult, Perfect, Ultimate. */
 type LateForms = readonly [string, string, string];
@@ -37,9 +39,6 @@ export interface EvolutionLine {
     readonly good: LateForms;
     readonly bad: LateForms;
 }
-
-/** Every line falls into this one when care is poor enough, like Numemon on the original V-Pet. */
-export const NEGLECTED_FORMS: LateForms = ['Numemon', 'BlackKingNumemon', 'PlatinumNumemon'];
 
 /**
  * Curated evolution lines. Names are sprite file names without extension.
@@ -129,7 +128,7 @@ export function speciesFor(line: EvolutionLine,
         case 'babyII': return line.babyII;
         case 'child': return line.child;
     }
-    const forms = branch === 'neglected' ? NEGLECTED_FORMS : branch === 'bad' ? line.bad : line.good;
+    const forms = branch === 'bad' ? line.bad : line.good;
     const index = stage === 'adult' ? 0 : stage === 'perfect' ? 1 : 2;
     return forms[index];
 }

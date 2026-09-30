@@ -15,3 +15,4 @@
 - Buddy roster (up to 6): earn an egg every 3,000 XP, switch buddies, release with confirmation. Idle buddies are frozen.
 - Earned food: meat, vitamins, and sirloin from repeating XP milestones, fed from a pixel-art food tray.
 - Save moved to a shared game.json so multiple VS Code windows no longer overwrite each other's progress; the old single pet is migrated.
+- Removed care mistakes and the Numemon path. A Child that is ready to evolve waits for you to choose its Adult path, from the screen or **Digimon: Choose Evolution**.

@@ -1,23 +1,17 @@
 import { RULES } from './pet';
-import { LINES, NEGLECTED_FORMS, displayName } from './species';
+import { LINES, displayName } from './species';
 
 /** Markdown for docs/evolution-lines.md. Regenerate with `npm run docs:evolutions`; a unit test keeps it in sync. */
 export function renderEvolutionLines(): string {
-    const good = `0-${RULES.maxMistakesForGood}`;
-    const bad = `${RULES.maxMistakesForGood + 1}-${RULES.maxMistakesForBad}`;
-    const neglected = `${RULES.maxMistakesForBad + 1}+`;
-    const forms = (names: readonly string[]) => names.map(displayName).join(' | ');
+    const forms = (names: readonly string[]) => names.map(displayName).join(' → ');
 
     const sections = LINES.map(line => [
         `## ${displayName(line.child)}`,
         '',
         [line.digitama, line.babyI, line.babyII, line.child].map(displayName).join(' → '),
         '',
-        '| Care mistakes | Adult | Perfect | Ultimate |',
-        '| --- | --- | --- | --- |',
-        `| ${good} | ${forms(line.good)} |`,
-        `| ${bad} | ${forms(line.bad)} |`,
-        `| ${neglected} | ${forms(NEGLECTED_FORMS)} |`,
+        `- **Path 1:** ${forms(line.good)}`,
+        `- **Path 2:** ${forms(line.bad)}`,
     ].join('\n'));
 
     return [
@@ -25,8 +19,8 @@ export function renderEvolutionLines(): string {
         '',
         '<!-- Generated from src/model/species.ts by `npm run docs:evolutions`. Do not edit by hand. -->',
         '',
-        `A new egg picks one of these ${LINES.length} lines at random. Care mistakes counted when the Child evolves decide which`,
-        `row it follows from Adult onward. More than ${RULES.maxMistakesForBad} mistakes sends any line down the Numemon path.`,
+        `A new egg picks one of these ${LINES.length} lines. It evolves on its own up to Child. When the Child has enough XP,`,
+        'it waits for you to pick one of two paths, which fixes its Adult, Perfect, and Ultimate forms.',
         '',
         'XP needed to leave each stage:',
         '',

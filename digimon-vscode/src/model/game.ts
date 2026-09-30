@@ -1,7 +1,7 @@
 import {
-    ActivityKind, FoodKind, PetEvent, PetState, activityEffort, createEgg, feed, parseState, recordActivity, tick,
+    ActivityKind, FoodKind, PetEvent, PetState, activityEffort, chooseBranch, createEgg, feed, parseState, recordActivity, tick,
 } from './pet';
-import { LINES } from './species';
+import { Branch, LINES } from './species';
 
 export const GAME_VERSION = 2;
 
@@ -110,6 +110,13 @@ export function feedGame(game: GameState,
     return { state: replaceActive(next, update.state), events: update.events };
 }
 
+export function chooseGameBranch(game: GameState,
+    branch: Branch,
+): GameUpdate {
+    const update = chooseBranch(activeBuddy(game), branch);
+    return { state: update.state === activeBuddy(game) ? game : replaceActive(game, update.state), events: update.events };
+}
+
 /** Make another buddy active. The outgoing one freezes as-is; the incoming one resumes from now. */
 export function switchBuddy(game: GameState,
     id: string,
@@ -153,7 +160,11 @@ export function parseGame(raw: unknown): GameState | undefined {
     if (candidate.version !== GAME_VERSION || !Array.isArray(candidate.buddies) || typeof candidate.activeId !== 'string') {
         return undefined;
     }
-    const buddiesValid = candidate.buddies.every(buddy => typeof buddy?.id === 'string' && parseState(buddy) !== undefined);
+    const buddies = candidate.buddies.map(buddy => {
+        const pet = parseState(buddy);
+        return pet && typeof buddy?.id === 'string' ? { ...pet, id: buddy.id } : undefined;
+    });
+    const buddiesValid = buddies.every(buddy => buddy !== undefined);
     const counts = (value: unknown, keys: readonly string[]) => typeof value === 'object' && value !== null
         && keys.every(key => Number.isFinite((value as Record<string, unknown>)[key]));
     const valid = buddiesValid
@@ -163,7 +174,7 @@ export function parseGame(raw: unknown): GameState | undefined {
         && Number.isFinite(candidate.pendingEggs)
         && Number.isFinite(candidate.effort)
         && Number.isFinite(candidate.nextBuddyId);
-    return valid ? candidate as GameState : undefined;
+    return valid ? { ...candidate, buddies } as GameState : undefined;
 }
 
 function withFirstBuddy(pet: PetState,

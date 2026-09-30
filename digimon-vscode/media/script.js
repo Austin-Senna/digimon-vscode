@@ -77,6 +77,13 @@
         }
     });
 
+    $('paths').addEventListener('click', event => {
+        const button = event.target.closest('.path');
+        if (button) {
+            vscode.postMessage({ type: 'choose', branch: button.dataset.branch });
+        }
+    });
+
     $('roster').addEventListener('click', event => {
         const button = event.target.closest('.buddy');
         if (button && button.dataset.id && !button.classList.contains('active')) {
@@ -120,6 +127,30 @@
             }
         }));
         return svg;
+    }
+
+    function renderChoice(state) {
+        $('evolve').hidden = !state.choice;
+        if (!state.choice) {
+            return;
+        }
+        $('paths').replaceChildren(...state.choice.map(option => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'path';
+            button.dataset.branch = option.branch;
+            button.setAttribute('aria-label', `Digivolve into ${option.name}, then ${option.next.join(', then ')}`);
+            const thumb = document.createElement('div');
+            thumb.className = 'thumb';
+            thumb.style.backgroundImage = `url('${option.spriteUri}')`;
+            thumb.style.backgroundPosition = '0 0';
+            const name = document.createElement('strong');
+            name.textContent = option.name;
+            const next = document.createElement('small');
+            next.textContent = `then ${option.next.join(', then ')}`;
+            button.append(thumb, name, next);
+            return button;
+        }));
     }
 
     function renderFood(state) {
@@ -204,8 +235,8 @@
 
         fillMeter($('fullness'), state.fullness);
         fillMeter($('energy'), state.energy);
-        $('mistakes').textContent = state.careMistakes === 1 ? '1 care mistake' : `${state.careMistakes} care mistakes`;
         $('age').textContent = `Age ${state.age}`;
+        renderChoice(state);
         renderFood(state);
         renderRoster(state);
     }

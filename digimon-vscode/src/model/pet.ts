@@ -24,12 +24,6 @@ export const RULES = {
     sleepAfterMs: 5 * MINUTE,
     /** Time only advances while VS Code is open; longer gaps between ticks are clamped to this. */
     maxTickGapMs: 5 * MINUTE,
-    /** Staying starved this long counts as another care mistake. */
-    starvingMistakeIntervalMs: 60 * MINUTE,
-    /** Care mistakes at Child -> Adult: at most this many takes the good branch. */
-    maxMistakesForGood: 2,
-    /** At most this many takes the bad branch; more is neglect. */
-    maxMistakesForBad: 5,
     /** Edits and Claude tool calls share one budget: at most one XP per active second. */
     activeSecondCooldownMs: SECOND,
     xpPerActivity: { edit: 1, save: 5, commit: 25, prompt: 3, agentTool: 1 } as Record<ActivityKind, number>,
@@ -46,9 +40,6 @@ export interface PetState {
     readonly xp: number;
     readonly fullness: number;
     readonly energy: number;
-    readonly careMistakes: number;
-    /** Starved time not yet counted as a care mistake. */
-    readonly starvingMs: number;
     /** Time VS Code has been open with this pet. */
     readonly ageMs: number;
     readonly bornAt: number;
@@ -68,7 +59,7 @@ export type PetEvent =
     | { kind: 'ate' }
     | { kind: 'refused' }
     | { kind: 'starving' }
-    | { kind: 'careMistake'; total: number }
+    | { kind: 'readyToChoose' }
     | { kind: 'exhausted' }
     | { kind: 'woke' };
 
@@ -99,8 +90,6 @@ export function createEgg(now: number,
         xp: 0,
         fullness: RULES.maxFullness,
         energy: RULES.maxEnergy,
-        careMistakes: 0,
-        starvingMs: 0,
         ageMs: 0,
         bornAt: now,
         lastTickAt: now,
@@ -142,7 +131,23 @@ export function xpForNextStage(state: PetState): number | null {
     return state.stage === 'ultimate' ? null : RULES.xpToEvolve[state.stage];
 }
 
-/** Advance real time: hunger, sleep, energy recovery, care mistakes, evolution. */
+/** A Child with enough XP waits for the player to pick its Adult path instead of evolving on its own. */
+export function isReadyToChoose(state: PetState): boolean {
+    return state.stage === 'child' && state.xp >= RULES.xpToEvolve.child && state.fullness > 0;
+}
+
+/** Evolve a waiting Child into the chosen Adult; the branch then fixes its Perfect and Ultimate forms. */
+export function chooseBranch(state: PetState,
+    branch: Branch,
+): Update {
+    if (!isReadyToChoose(state)) {
+        return { state, events: [] };
+    }
+    const next: PetState = { ...state, stage: 'adult', branch };
+    return { state: next, events: [{ kind: 'evolved', from: species(state), to: species(next), stage: 'adult' }] };
+}
+
+/** Advance real time: hunger, sleep, energy recovery, evolution. */
 export function tick(state: PetState,
     now: number,
 ): Update {
@@ -155,16 +160,6 @@ export function tick(state: PetState,
         const fullness = Math.max(0, next.fullness - RULES.fullnessDecayPerMinute * minutes);
         if (fullness <= 0 && state.fullness > 0) {
             events.push({ kind: 'starving' });
-            next = { ...next, careMistakes: next.careMistakes + 1, starvingMs: 0 };
-            events.push({ kind: 'careMistake', total: next.careMistakes });
-        } else if (fullness <= 0) {
-            const starvingMs = next.starvingMs + elapsed;
-            if (starvingMs >= RULES.starvingMistakeIntervalMs) {
-                next = { ...next, careMistakes: next.careMistakes + 1, starvingMs: starvingMs - RULES.starvingMistakeIntervalMs };
-                events.push({ kind: 'careMistake', total: next.careMistakes });
-            } else {
-                next = { ...next, starvingMs };
-            }
         }
         next = { ...next, fullness };
 
@@ -208,6 +203,9 @@ export function recordActivity(state: PetState,
         }
         next = { ...next, xp: state.xp + xp, energy };
     }
+    if (isReadyToChoose(next) && !isReadyToChoose(state)) {
+        events.push({ kind: 'readyToChoose' });
+    }
     const evolution = evolve(next);
     return { state: evolution.state, events: [...events, ...evolution.events] };
 }
@@ -226,7 +224,6 @@ export function feed(state: PetState,
             ...state,
             fullness: Math.min(RULES.maxFullness, state.fullness + fullness),
             energy: Math.min(RULES.maxEnergy, state.energy + energy),
-            starvingMs: fullness > 0 ? 0 : state.starvingMs,
         },
         events: [{ kind: 'ate' }],
     };
@@ -244,39 +241,39 @@ export function activityEffort(state: PetState,
     return throttled ? 0 : RULES.xpPerActivity[kind];
 }
 
-/** Accept only a well-formed state for a line that still exists. */
+const NUMBER_FIELDS = ['xp', 'fullness', 'energy', 'ageMs', 'bornAt', 'lastTickAt', 'lastActivityAt', 'lastEditXpAt'] as const;
+
+/**
+ * Accept only a well-formed state for a line that still exists, keeping just the known fields.
+ * Older saves may carry removed fields (care mistakes) or the removed Numemon branch, which reads as the dark path.
+ */
 export function parseState(raw: unknown): PetState | undefined {
     if (typeof raw !== 'object' || raw === null) {
         return undefined;
     }
-    const candidate = raw as Partial<PetState>;
-    const numbers: (keyof PetState)[] = [
-        'xp', 'fullness', 'energy', 'careMistakes', 'starvingMs', 'ageMs', 'bornAt', 'lastTickAt', 'lastActivityAt', 'lastEditXpAt',
-    ];
+    const candidate = raw as Record<string, unknown>;
+    const branch = candidate.branch === 'neglected' ? 'bad' : candidate.branch;
     const valid = candidate.version === STATE_VERSION
         && typeof candidate.lineId === 'string' && findLine(candidate.lineId) !== undefined
-        && typeof candidate.stage === 'string' && STAGES.includes(candidate.stage)
-        && (candidate.branch === null || candidate.branch === 'good' || candidate.branch === 'bad' || candidate.branch === 'neglected')
-        && numbers.every(key => typeof candidate[key] === 'number' && Number.isFinite(candidate[key]));
-    return valid ? candidate as PetState : undefined;
+        && typeof candidate.stage === 'string' && (STAGES as readonly string[]).includes(candidate.stage)
+        && (branch === null || branch === 'good' || branch === 'bad')
+        && NUMBER_FIELDS.every(key => typeof candidate[key] === 'number' && Number.isFinite(candidate[key]));
+    if (!valid) {
+        return undefined;
+    }
+    const state: Record<string, unknown> = { version: STATE_VERSION, lineId: candidate.lineId, stage: candidate.stage, branch };
+    NUMBER_FIELDS.forEach(key => state[key] = candidate[key]);
+    return state as unknown as PetState;
 }
 
+/** Automatic evolution for every stage except Child, which waits for `chooseBranch`. */
 function evolve(state: PetState): Update {
     const threshold = xpForNextStage(state);
-    if (threshold === null || state.xp < threshold || state.fullness <= 0) {
+    if (threshold === null || state.xp < threshold || state.fullness <= 0 || state.stage === 'child') {
         return { state, events: [] };
     }
-    const stage = STAGES[STAGES.indexOf(state.stage) + 1];
-    const branch = stage === 'adult' ? branchFor(state.careMistakes) : state.branch;
-    const next: PetState = { ...state, stage, branch };
-    return { state: next, events: [{ kind: 'evolved', from: species(state), to: species(next), stage }] };
-}
-
-function branchFor(careMistakes: number): Branch {
-    if (careMistakes <= RULES.maxMistakesForGood) {
-        return 'good';
-    }
-    return careMistakes <= RULES.maxMistakesForBad ? 'bad' : 'neglected';
+    const next: PetState = { ...state, stage: STAGES[STAGES.indexOf(state.stage) + 1] };
+    return { state: next, events: [{ kind: 'evolved', from: species(state), to: species(next), stage: next.stage }] };
 }
 
 function lineOf(state: PetState) {

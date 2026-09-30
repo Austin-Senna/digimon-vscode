@@ -2,8 +2,8 @@
 
 <!-- Generated from src/model/species.ts by `npm run docs:evolutions`. Do not edit by hand. -->
 
-A new egg picks one of these 13 lines at random. Care mistakes counted when the Child evolves decide which
-row it follows from Adult onward. More than 5 mistakes sends any line down the Numemon path.
+A new egg picks one of these 13 lines. It evolves on its own up to Child. When the Child has enough XP,
+it waits for you to pick one of two paths, which fixes its Adult, Perfect, and Ultimate forms.
 
 XP needed to leave each stage:
 
@@ -15,128 +15,89 @@ XP needed to leave each stage:
 
 Agu Digitama → Zurumon → Koromon → Agumon
 
-| Care mistakes | Adult | Perfect | Ultimate |
-| --- | --- | --- | --- |
-| 0-2 | Greymon | MetalGreymon | WarGreymon |
-| 3-5 | Tyrannomon | SkullGreymon | BlackWarGreymon |
-| 6+ | Numemon | BlackKingNumemon | PlatinumNumemon |
+- **Path 1:** Greymon → MetalGreymon → WarGreymon
+- **Path 2:** Tyrannomon → SkullGreymon → BlackWarGreymon
 
 ## Gabumon X
 
 Gabu Digitama → YukimiBotamon → Tsunomon → Gabumon X
 
-| Care mistakes | Adult | Perfect | Ultimate |
-| --- | --- | --- | --- |
-| 0-2 | Garurumon | WereGarurumon | MetalGarurumon |
-| 3-5 | Garurumon Black | WereGarurumon Black | MetalGarurumon Black |
-| 6+ | Numemon | BlackKingNumemon | PlatinumNumemon |
+- **Path 1:** Garurumon → WereGarurumon → MetalGarurumon
+- **Path 2:** Garurumon Black → WereGarurumon Black → MetalGarurumon Black
 
 ## Piyomon
 
 Piyo Digitama → Nyokimon → Pyocomon → Piyomon
 
-| Care mistakes | Adult | Perfect | Ultimate |
-| --- | --- | --- | --- |
-| 0-2 | Birdramon | Garudamon | Hououmon |
-| 3-5 | Saberdramon | Yatagaramon 2006 | Valdurmon |
-| 6+ | Numemon | BlackKingNumemon | PlatinumNumemon |
+- **Path 1:** Birdramon → Garudamon → Hououmon
+- **Path 2:** Saberdramon → Yatagaramon 2006 → Valdurmon
 
 ## Palmon
 
 Pal Digitama → Yuramon → Tanemon → Palmon
 
-| Care mistakes | Adult | Perfect | Ultimate |
-| --- | --- | --- | --- |
-| 0-2 | Togemon | Lilimon | Rosemon |
-| 3-5 | Woodmon | Jyureimon | Pinochimon |
-| 6+ | Numemon | BlackKingNumemon | PlatinumNumemon |
+- **Path 1:** Togemon → Lilimon → Rosemon
+- **Path 2:** Woodmon → Jyureimon → Pinochimon
 
 ## Tentomon
 
 Tento Digitama → Bubbmon → Mochimon → Tentomon
 
-| Care mistakes | Adult | Perfect | Ultimate |
-| --- | --- | --- | --- |
-| 0-2 | Kabuterimon | AtlurKabuterimon Red | HerakleKabuterimon |
-| 3-5 | Kuwagamon | Okuwamon | GrandisKuwagamon |
-| 6+ | Numemon | BlackKingNumemon | PlatinumNumemon |
+- **Path 1:** Kabuterimon → AtlurKabuterimon Red → HerakleKabuterimon
+- **Path 2:** Kuwagamon → Okuwamon → GrandisKuwagamon
 
 ## Gomamon
 
 Goma Digitama → Pitchmon → Pukamon → Gomamon
 
-| Care mistakes | Adult | Perfect | Ultimate |
-| --- | --- | --- | --- |
-| 0-2 | Ikkakumon | Zudomon | Plesiomon |
-| 3-5 | Gesomon | MarinDevimon | Leviamon |
-| 6+ | Numemon | BlackKingNumemon | PlatinumNumemon |
+- **Path 1:** Ikkakumon → Zudomon → Plesiomon
+- **Path 2:** Gesomon → MarinDevimon → Leviamon
 
 ## Plotmon
 
 Plot Digitama → YukimiBotamon → Nyaromon → Plotmon
 
-| Care mistakes | Adult | Perfect | Ultimate |
-| --- | --- | --- | --- |
-| 0-2 | Tailmon | Angewomon | Ophanimon |
-| 3-5 | BlackTailmon | LadyDevimon | Lilithmon |
-| 6+ | Numemon | BlackKingNumemon | PlatinumNumemon |
+- **Path 1:** Tailmon → Angewomon → Ophanimon
+- **Path 2:** BlackTailmon → LadyDevimon → Lilithmon
 
 ## Terriermon
 
 Terrier Digitama → Zerimon → Gummymon → Terriermon
 
-| Care mistakes | Adult | Perfect | Ultimate |
-| --- | --- | --- | --- |
-| 0-2 | Galgomon | Rapidmon | SaintGalgomon |
-| 3-5 | BlackGalgomon | BlackRapidmon | BlackSaintGalgomon |
-| 6+ | Numemon | BlackKingNumemon | PlatinumNumemon |
+- **Path 1:** Galgomon → Rapidmon → SaintGalgomon
+- **Path 2:** BlackGalgomon → BlackRapidmon → BlackSaintGalgomon
 
 ## Guilmon
 
 Guil Digitama → Jyarimon → Gigimon → Guilmon
 
-| Care mistakes | Adult | Perfect | Ultimate |
-| --- | --- | --- | --- |
-| 0-2 | Growmon | MegaloGrowmon | Dukemon |
-| 3-5 | BlackGrowmon | BlackMegaloGrowmon | ChaosDukemon |
-| 6+ | Numemon | BlackKingNumemon | PlatinumNumemon |
+- **Path 1:** Growmon → MegaloGrowmon → Dukemon
+- **Path 2:** BlackGrowmon → BlackMegaloGrowmon → ChaosDukemon
 
 ## V-mon
 
 V Digitama → Chicomon → Chibimon → V-mon
 
-| Care mistakes | Adult | Perfect | Ultimate |
-| --- | --- | --- | --- |
-| 0-2 | XV-mon | Paildramon | Imperialdramon Fighter |
-| 3-5 | Airdramon | Megadramon | Mugendramon |
-| 6+ | Numemon | BlackKingNumemon | PlatinumNumemon |
+- **Path 1:** XV-mon → Paildramon → Imperialdramon Fighter
+- **Path 2:** Airdramon → Megadramon → Mugendramon
 
 ## Impmon
 
 Imp Digitama → Kiimon → Yaamon → Impmon
 
-| Care mistakes | Adult | Perfect | Ultimate |
-| --- | --- | --- | --- |
-| 0-2 | Wizarmon | Baalmon | Beelzebumon |
-| 3-5 | Devimon | Vamdemon | BelialVamdemon |
-| 6+ | Numemon | BlackKingNumemon | PlatinumNumemon |
+- **Path 1:** Wizarmon → Baalmon → Beelzebumon
+- **Path 2:** Devimon → Vamdemon → BelialVamdemon
 
 ## Lalamon
 
 Lala Digitama → Leafmon → Budmon → Lalamon
 
-| Care mistakes | Adult | Perfect | Ultimate |
-| --- | --- | --- | --- |
-| 0-2 | Sunflowmon | Lilamon | Lotusmon |
-| 3-5 | Woodmon | Blossomon | Rafflesimon |
-| 6+ | Numemon | BlackKingNumemon | PlatinumNumemon |
+- **Path 1:** Sunflowmon → Lilamon → Lotusmon
+- **Path 2:** Woodmon → Blossomon → Rafflesimon
 
 ## Lopmon
 
 Lop Digitama → Cocomon → Chocomon → Lopmon
 
-| Care mistakes | Adult | Perfect | Ultimate |
-| --- | --- | --- | --- |
-| 0-2 | Turuiemon | Andiramon Data | Cherubimon Virtue |
-| 3-5 | BlackTailmon | LadyDevimon | Lilithmon |
-| 6+ | Numemon | BlackKingNumemon | PlatinumNumemon |
+- **Path 1:** Turuiemon → Andiramon Data → Cherubimon Virtue
+- **Path 2:** BlackTailmon → LadyDevimon → Lilithmon

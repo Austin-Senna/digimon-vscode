@@ -48,6 +48,11 @@
         "icon": "$(heart)"
       },
       {
+        "command": "digimon.chooseEvolution",
+        "title": "Choose Evolution",
+        "category": "Digimon"
+      },
+      {
         "command": "digimon.switchBuddy",
         "title": "Switch Buddy",
         "category": "Digimon",

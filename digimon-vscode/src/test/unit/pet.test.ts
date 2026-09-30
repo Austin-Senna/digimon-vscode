@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import {
-    FOODS, PetState, RULES, activityEffort, createEgg, feed, isAsleep, mood, parseState, recordActivity, species, tick,
+    FOODS, chooseBranch, isReadyToChoose, PetState, RULES, activityEffort, createEgg, feed, isAsleep, mood, parseState, recordActivity, species, tick,
 } from '../../model/pet';
 import { LINES } from '../../model/species';
 
@@ -69,23 +69,17 @@ suite('pet model', () => {
         assert.strictEqual(update.state.ageMs, RULES.maxTickGapMs);
     });
 
-    test('starving counts one care mistake, then one per interval', () => {
+    test('warns once when fullness runs out', () => {
         const state = hatched({ fullness: 1 });
         const minutesToEmpty = 1 / RULES.fullnessDecayPerMinute;
         const first = advance(state, minutesToEmpty * MINUTE);
         assert.strictEqual(first.state.fullness, 0);
-        assert.strictEqual(first.state.careMistakes, 1);
-        assert.ok(first.events.some(event => event.kind === 'starving'));
-
-        const later = advance(first.state, RULES.starvingMistakeIntervalMs);
-        assert.strictEqual(later.state.careMistakes, 2);
+        assert.strictEqual(first.events.filter(event => event.kind === 'starving').length, 1);
+        assert.strictEqual(advance(first.state, 60 * MINUTE).events.some(event => event.kind === 'starving'), false);
     });
 
-    test('feeding resets the starvation clock', () => {
-        const starving = hatched({ fullness: 0, starvingMs: RULES.starvingMistakeIntervalMs - MINUTE });
-        const fed = feed(starving, 'meat').state;
-        assert.strictEqual(fed.fullness, FOODS.meat.fullness);
-        assert.strictEqual(fed.starvingMs, 0);
+    test('meat feeds a starving pet', () => {
+        assert.strictEqual(feed(hatched({ fullness: 0 }), 'meat').state.fullness, FOODS.meat.fullness);
     });
 
     test('feeding a full pet or an egg is refused', () => {
@@ -161,14 +155,29 @@ suite('pet model', () => {
         assert.strictEqual(isAsleep(woke.state, rested.lastTickAt), false);
     });
 
-    test('care mistakes at Child pick the adult branch', () => {
-        const line = LINES[0];
-        const evolveWith = (careMistakes: number) =>
-            species(tick(hatched({ xp: RULES.xpToEvolve.child, careMistakes, lastActivityAt: T0 }), T0 + MINUTE).state);
-        assert.strictEqual(evolveWith(0), line.good[0]);
-        assert.strictEqual(evolveWith(RULES.maxMistakesForGood), line.good[0]);
-        assert.strictEqual(evolveWith(RULES.maxMistakesForGood + 1), line.bad[0]);
-        assert.strictEqual(evolveWith(RULES.maxMistakesForBad + 1), 'Numemon');
+    test('a Child with enough XP waits for a choice instead of evolving', () => {
+        const child = hatched({ xp: RULES.xpToEvolve.child - 1, lastActivityAt: T0 });
+        const ready = recordActivity(child, 'save', T0 + 1);
+        assert.strictEqual(ready.state.stage, 'child');
+        assert.ok(isReadyToChoose(ready.state));
+        assert.deepStrictEqual(ready.events, [{ kind: 'readyToChoose' }]);
+        assert.strictEqual(tick(ready.state, T0 + MINUTE).state.stage, 'child');
+        assert.deepStrictEqual(recordActivity(ready.state, 'save', T0 + 2).events, []);
+    });
+
+    test('the chosen branch picks the Adult form', () => {
+        const ready = hatched({ xp: RULES.xpToEvolve.child });
+        assert.strictEqual(species(chooseBranch(ready, 'good').state), LINES[0].good[0]);
+        const dark = chooseBranch(ready, 'bad');
+        assert.strictEqual(species(dark.state), LINES[0].bad[0]);
+        assert.deepStrictEqual(dark.events, [{ kind: 'evolved', from: LINES[0].child, to: LINES[0].bad[0], stage: 'adult' }]);
+    });
+
+    test('choosing is ignored until the Child is ready, and while starving', () => {
+        const early = hatched({ xp: RULES.xpToEvolve.child - 1 });
+        assert.strictEqual(chooseBranch(early, 'good').state, early);
+        const starving = hatched({ xp: RULES.xpToEvolve.child, fullness: 0 });
+        assert.strictEqual(chooseBranch(starving, 'good').state, starving);
     });
 
     test('branch is kept through later stages', () => {
@@ -189,5 +198,12 @@ suite('pet model', () => {
         assert.strictEqual(parseState({ ...state, lineId: 'missingno' }), undefined);
         assert.strictEqual(parseState({ ...state, version: 0 }), undefined);
         assert.strictEqual(parseState({ ...state, xp: 'lots' }), undefined);
+    });
+
+    test('parseState drops removed care-mistake fields and maps the old Numemon branch', () => {
+        const old = { ...hatched({ stage: 'adult' }), branch: 'neglected', careMistakes: 7, starvingMs: 5 };
+        const parsed = parseState(old)!;
+        assert.strictEqual(parsed.branch, 'bad');
+        assert.ok(!('careMistakes' in parsed) && !('starvingMs' in parsed));
     });
 });

@@ -17,11 +17,11 @@ Digitama → Baby I → Baby II → Child → Adult → Perfect → Ultimate.
 
 Your Digimon needs care:
 
-- **Fullness** drops over time. Feed it from the food tray under its screen. At zero it starves, earns no XP, cannot evolve, and you take a care mistake (plus another every hour it stays starved).
+- **Fullness** drops over time. Feed it from the food tray under its screen. At zero it starves: it earns no XP and cannot evolve until fed.
 - **Energy** drains as it earns XP. At zero it is exhausted and earns half XP.
 - **Sleep** happens after 5 minutes without activity. Energy recovers while it sleeps.
 
-Care mistakes decide what your Child becomes: 0-2 takes the good line (Agumon → Greymon → MetalGreymon → WarGreymon), 3-5 takes the dark line (Tyrannomon → SkullGreymon → BlackWarGreymon), and more than that ends in Numemon.
+Up to Child, evolution is automatic. When a Child has enough XP, it waits for you to choose one of two paths (for Agumon: Greymon → MetalGreymon → WarGreymon, or Tyrannomon → SkullGreymon → BlackWarGreymon). The choice fixes its Adult, Perfect, and Ultimate forms.
 
 Time only passes while VS Code is open, so a weekend away will not starve it.
 
@@ -69,7 +69,7 @@ While a session runs, the screen shows "Claude is working", or a blinking "Claud
 
 ## Commands
 
-- `Digimon: Feed`, `Digimon: Switch Buddy`, `Digimon: Release Buddy`
+- `Digimon: Feed`, `Digimon: Choose Evolution`, `Digimon: Switch Buddy`, `Digimon: Release Buddy`
 - `Digimon: Open Save Folder`
 - `Digimon: Start Over` (asks before discarding everything)
 - `Digimon: Connect Claude Code` / `Digimon: Disconnect Claude Code`

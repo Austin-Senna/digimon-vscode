@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import { renderEvolutionLines } from '../../model/evolutionDoc';
-import { LINES, NEGLECTED_FORMS, STAGES, displayName, speciesFor, spritePath } from '../../model/species';
+import { BRANCHES, LINES, STAGES, displayName, speciesFor, spritePath } from '../../model/species';
 
 const EXTENSION_ROOT = path.resolve(__dirname, '..', '..', '..');
 
@@ -15,7 +15,7 @@ suite('species', () => {
     test('every species in every line has a sprite at its stage', () => {
         const missing: string[] = [];
         for (const line of LINES) {
-            for (const branch of ['good', 'bad', 'neglected'] as const) {
+            for (const branch of BRANCHES) {
                 for (const stage of STAGES) {
                     const name = speciesFor(line, stage, branch);
                     const file = path.join(EXTENSION_ROOT, ...spritePath(stage, name));
@@ -26,12 +26,6 @@ suite('species', () => {
             }
         }
         assert.deepStrictEqual(missing, []);
-    });
-
-    test('neglected branch ignores the line', () => {
-        const [first, second] = LINES;
-        assert.strictEqual(speciesFor(first, 'adult', 'neglected'), NEGLECTED_FORMS[0]);
-        assert.strictEqual(speciesFor(second, 'ultimate', 'neglected'), NEGLECTED_FORMS[2]);
     });
 
     test('docs/evolution-lines.md matches the code (run `npm run docs:evolutions`)', () => {

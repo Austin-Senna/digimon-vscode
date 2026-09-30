@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
-import { GameState, GameEvent, GameUpdate, activeBuddy, feedGame, recordGameActivity, releaseBuddy, switchBuddy, tickGame, createGame } from './model/game';
+import { GameState, GameEvent, GameUpdate, activeBuddy, chooseGameBranch, feedGame, recordGameActivity, releaseBuddy, switchBuddy, tickGame, createGame } from './model/game';
 import { ActivityKind, FoodKind, PetState } from './model/pet';
+import { Branch } from './model/species';
 import { GameStore } from './store';
 
 const TICK_INTERVAL_MS = 30_000;
@@ -44,6 +45,10 @@ export class PetController implements vscode.Disposable {
 
     feed(food: FoodKind): void {
         this._apply(now => feedGame(this._store.load(now), food));
+    }
+
+    choose(branch: Branch): void {
+        this._apply(now => chooseGameBranch(this._store.load(now), branch));
     }
 
     switchTo(id: string): void {
