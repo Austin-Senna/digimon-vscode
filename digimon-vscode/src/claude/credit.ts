@@ -2,7 +2,8 @@ import { ClaudeSessionCredit, GameEvent, GameState, GameUpdate, recordGameActivi
 import { ActivityKind } from '../model/pet';
 import { ClaudeEvent, SESSION_STALE_MS, statusAfter } from './events';
 
-export const CLAUDE_MINUTE_MS = 60_000;
+/** Working time per `claudeWork` reward. */
+export const CLAUDE_WORK_MS = 30_000;
 
 /**
  * Credit one Claude event to the game. Every window reads the same log and writes the same save, so crediting
@@ -22,8 +23,8 @@ export function creditClaudeEvent(game: GameState,
     if (previous?.working) {
         bankedMs += Math.min(event.t - previous.lastT, SESSION_STALE_MS);
     }
-    const minutes = Math.floor(bankedMs / CLAUDE_MINUTE_MS);
-    bankedMs -= minutes * CLAUDE_MINUTE_MS;
+    const units = Math.floor(bankedMs / CLAUDE_WORK_MS);
+    bankedMs -= units * CLAUDE_WORK_MS;
     const status = statusAfter(event.event);
     const credit: ClaudeSessionCredit = {
         lastT: event.t,
@@ -38,8 +39,8 @@ export function creditClaudeEvent(game: GameState,
         state = update.state;
         events.push(...update.events);
     };
-    for (let minute = 0; minute < minutes; minute++) {
-        reward('claudeMinute');
+    for (let unit = 0; unit < units; unit++) {
+        reward('claudeWork');
     }
     if (event.event === 'prompt') {
         reward('prompt');

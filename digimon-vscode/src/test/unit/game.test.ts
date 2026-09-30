@@ -1,9 +1,9 @@
 import * as assert from 'assert';
 import {
-    GAME_VERSION, GameState, ROSTER, activeBuddy, chooseEgg, createGame, eggOffer, feedGame, isPartyFull, migrateFromPet, parseGame,
+    GAME_VERSION, GameState, ROSTER, activeBuddy, chooseEgg, createGame, eggOffer, eggProgress, feedGame, isPartyFull, migrateFromPet, parseGame,
     recordGameActivity, releaseBuddy, switchBuddy, tickGame,
 } from '../../model/game';
-import { FOODS, RULES, createEgg } from '../../model/pet';
+import { FOODS, RULES, createEgg, levelOf } from '../../model/pet';
 import { LINES } from '../../model/species';
 
 const MINUTE = 60_000;
@@ -43,9 +43,9 @@ suite('game', () => {
     });
 
     test('migrates a v1 pet as the first buddy', () => {
-        const pet = { ...createEgg(T0, () => 0), xp: 42 };
+        const pet = { ...createEgg(T0, () => 0), xp: 15 * 9 ** 2 };
         const migrated = migrateFromPet(pet, T0 + MINUTE);
-        assert.strictEqual(activeBuddy(migrated).xp, 42);
+        assert.strictEqual(levelOf(activeBuddy(migrated).xp), 10, 'rescaled to the version 6 level curve');
         assert.strictEqual(activeBuddy(migrated).lastTickAt, T0 + MINUTE);
     });
 
@@ -88,7 +88,7 @@ suite('game', () => {
         const v2 = { ...rest, version: 2, pendingEggs: 0, food: { meat: 2, vitamin: 1, sirloin: 1 }, granted: { meat: 4, vitamin: 1, sirloin: 0, egg: 1 } };
         const migrated = parseGame(JSON.parse(JSON.stringify(v2)))!;
         assert.strictEqual(migrated.version, GAME_VERSION);
-        assert.strictEqual(migrated.bits, 2 * 50 + 1 * 50 + 1 * 150);
+        assert.strictEqual(migrated.bits, (2 * 50 + 1 * 50 + 1 * 150) * 2, 'valued at the old prices, then rescaled');
         assert.strictEqual(migrated.eggsGranted, 1);
         assert.ok(!('food' in migrated) && !('granted' in migrated));
     });
@@ -177,6 +177,18 @@ suite('game', () => {
         const after = recordGameActivity(switched, 'commit', T0 + 1).state;
         assert.strictEqual(after.buddies[0].xp, before);
         assert.ok(activeBuddy(after).xp > 0);
+    });
+
+    test('saves before version 6 keep their levels, egg progress, and buying power', () => {
+        const { claudeSessions: _, ...rest } = game();
+        const buddy = { ...activeBuddy(game()), xp: 15 * 9 ** 2 + 7 };
+        const v5 = { ...rest, version: 5, buddies: [buddy], bits: 100, effort: 1_500 * 2 + 750, eggsGranted: 2 };
+        const migrated = parseGame(JSON.parse(JSON.stringify(v5)))!;
+        assert.strictEqual(levelOf(activeBuddy(migrated).xp), 10);
+        assert.strictEqual(migrated.bits, 200);
+        assert.strictEqual(Math.floor(migrated.effort / ROSTER.effortPerEgg), 2, 'no eggs gained or lost');
+        assert.strictEqual(eggProgress(migrated).current, ROSTER.effortPerEgg / 2, 'halfway to the next egg, as before');
+        assert.deepStrictEqual(parseGame(JSON.parse(JSON.stringify(migrated))), migrated, 'version 6 saves are not rescaled again');
     });
 
     test('version 4 saves start with no Claude sessions', () => {

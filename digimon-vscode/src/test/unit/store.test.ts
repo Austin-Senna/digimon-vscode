@@ -42,9 +42,9 @@ suite('GameStore', () => {
     });
 
     test('migrates a legacy globalState pet on first load', () => {
-        const legacy = { ...createEgg(T0, () => 0), xp: 17 };
+        const legacy = { ...createEgg(T0, () => 0), xp: 15 };
         const store = new GameStore(file, () => JSON.parse(JSON.stringify(legacy)));
-        assert.strictEqual(activeBuddy(store.load(T0)).xp, 17);
+        assert.strictEqual(activeBuddy(store.load(T0)).xp, 25, 'rescaled to the version 6 level curve');
         assert.ok(fs.existsSync(file));
     });
 

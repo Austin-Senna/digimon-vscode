@@ -3,20 +3,29 @@ import {
 } from './pet';
 import { Branch, LINES } from './species';
 
-export const GAME_VERSION = 5;
+export const GAME_VERSION = 6;
 
 export const ROSTER = {
     maxBuddies: 6,
     /** How many different lines each earned egg lets the player choose between. */
     eggChoices: 2,
     /** Lifetime effort per new egg (about one active day); repeats forever. */
-    effortPerEgg: 1_500,
+    effortPerEgg: 5_000,
     /** Bits earned per point of effort. */
     bitsPerEffort: 1,
-    startingBits: 150,
+    startingBits: 300,
     /** Sirloin refills both meters, so it costs as much as three single-stat foods. */
-    foodPrices: { meat: 50, vitamin: 50, sirloin: 150 } as Record<FoodKind, number>,
+    foodPrices: { meat: 100, vitamin: 100, sirloin: 300 } as Record<FoodKind, number>,
 };
+
+/**
+ * Version 6 roughly tripled XP income and scaled levels, eggs, and prices up to match. Older saves are rescaled on
+ * load so every buddy keeps its level, egg progress is kept, and bits keep their buying power.
+ */
+const V6_RESCALE = { xp: 25 / 15, effort: 5_000 / 1_500, bits: 2 };
+
+/** Food prices before version 6, which version 2 refunds are valued at. */
+const V2_FOOD_PRICES: Record<FoodKind, number> = { meat: 50, vitamin: 50, sirloin: 150 };
 
 export interface Buddy extends PetState {
     readonly id: string;
@@ -78,7 +87,7 @@ export function createGame(now: number,
 export function migrateFromPet(pet: PetState,
     now: number,
 ): GameState {
-    return withFirstBuddy({ ...pet, lastTickAt: now }, now);
+    return withFirstBuddy({ ...pet, xp: Math.floor(pet.xp * V6_RESCALE.xp), lastTickAt: now }, now);
 }
 
 export function activeBuddy(game: GameState): Buddy {
@@ -235,13 +244,15 @@ export function parseGame(raw: unknown): GameState | undefined {
     if (!money || !finite(money.bits) || !finite(money.eggsGranted)) {
         return undefined;
     }
+    // Flooring keeps levels and eggs earned: both thresholds land on whole numbers after rescaling.
+    const rescale = candidate.version < 6;
     return {
         version: GAME_VERSION,
         activeId: candidate.activeId,
-        buddies: buddies as Buddy[],
-        bits: money.bits,
+        buddies: rescale ? (buddies as Buddy[]).map(buddy => ({ ...buddy, xp: Math.floor(buddy.xp * V6_RESCALE.xp) })) : buddies as Buddy[],
+        bits: rescale ? money.bits * V6_RESCALE.bits : money.bits,
         eggOffers,
-        effort: candidate.effort,
+        effort: rescale ? Math.floor(candidate.effort * V6_RESCALE.effort) : candidate.effort,
         eggsGranted: money.eggsGranted,
         nextBuddyId: candidate.nextBuddyId,
         claudeSessions: candidate.version >= 5 ? parseClaudeSessions(candidate.claudeSessions) : {},
@@ -287,12 +298,12 @@ function pendingEggsAsOffers(save: Record<string, unknown>,
 function refundV2(save: Record<string, unknown>): { bits: unknown; eggsGranted: unknown } | undefined {
     const food = save.food as Record<string, unknown> | undefined;
     const granted = save.granted as Record<string, unknown> | undefined;
-    const kinds = Object.keys(ROSTER.foodPrices) as FoodKind[];
+    const kinds = Object.keys(V2_FOOD_PRICES) as FoodKind[];
     if (!food || !granted || !kinds.every(kind => Number.isFinite(food[kind]))) {
         return undefined;
     }
     return {
-        bits: kinds.reduce((total, kind) => total + (food[kind] as number) * ROSTER.foodPrices[kind], 0),
+        bits: kinds.reduce((total, kind) => total + (food[kind] as number) * V2_FOOD_PRICES[kind], 0),
         eggsGranted: granted.egg,
     };
 }

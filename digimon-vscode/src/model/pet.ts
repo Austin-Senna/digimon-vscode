@@ -5,10 +5,10 @@ const MINUTE = 60 * SECOND;
 
 export const RULES = {
     /**
-     * Reaching level L takes 15 * (L - 1)^2 total XP, so each level costs a little more than the last and levels
-     * never run out. At roughly 300 XP per active hour: Lv 10 in ~4 hours, Lv 25 in ~a week, Lv 50 in ~a month.
+     * Reaching level L takes 25 * (L - 1)^2 total XP, so each level costs a little more than the last and levels
+     * never run out. At roughly 900 XP per active hour: Lv 10 in ~2 hours, Lv 25 in ~4 days, Lv 50 in ~2 weeks.
      */
-    xpPerLevelUnit: 15,
+    xpPerLevelUnit: 25,
     /** Level at which each stage evolves. A Child at its level waits for the player to choose its path. */
     evolveAtLevel: {
         digitama: 2,
@@ -22,8 +22,8 @@ export const RULES = {
     maxEnergy: 100,
     /** Below this fullness the pet reads as hungry. */
     hungryBelow: 25,
-    /** A full stomach lasts 100 minutes; one meat buys 25. */
-    fullnessDecayPerMinute: 1,
+    /** A full stomach lasts 80 minutes; one meat buys 20. */
+    fullnessDecayPerMinute: 1.25,
     energyCostPerXp: 0.05,
     energyRegenPerMinuteAsleep: 2,
     /** No activity for this long and the pet falls asleep. */
@@ -31,12 +31,12 @@ export const RULES = {
     /** Time only advances while VS Code is open; longer gaps between ticks are clamped to this. */
     maxTickGapMs: 5 * MINUTE,
     /**
-     * XP per rewarded activity. `claudeMinute` is one minute of a Claude session working;
+     * XP per rewarded activity. `claudeWork` is 30 seconds of a Claude session working;
      * `save` only counts when the file had unsaved changes (checked by the caller).
      */
-    xpPerActivity: { edit: 3, save: 5, commit: 10, command: 2, prompt: 3, claudeMinute: 2 } as Record<ActivityKind, number>,
+    xpPerActivity: { edit: 1, save: 5, commit: 10, command: 3, prompt: 5, claudeWork: 2 } as Record<ActivityKind, number>,
     /** Minimum gap between rewards of the same kind, so mashing keys, saves, or empty commits earns nothing extra. */
-    cooldownMs: { edit: 30 * SECOND, save: MINUTE, commit: 5 * MINUTE, command: 30 * SECOND } as Record<CooldownKind, number>,
+    cooldownMs: { edit: 3 * SECOND, save: 30 * SECOND, commit: MINUTE, command: 10 * SECOND } as Record<CooldownKind, number>,
     exhaustedXpMultiplier: 0.5,
 };
 
@@ -62,8 +62,8 @@ export interface PetState {
     readonly lastCommandXpAt: number;
 }
 
-/** `command` is a command run in a VS Code terminal; `prompt` and `claudeMinute` come from Claude Code sessions. */
-export type ActivityKind = 'edit' | 'save' | 'commit' | 'command' | 'prompt' | 'claudeMinute';
+/** `command` is a command run in a VS Code terminal; `prompt` and `claudeWork` come from Claude Code sessions. */
+export type ActivityKind = 'edit' | 'save' | 'commit' | 'command' | 'prompt' | 'claudeWork';
 
 export type CooldownKind = 'edit' | 'save' | 'commit' | 'command';
 

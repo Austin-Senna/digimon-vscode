@@ -56,11 +56,11 @@ suite('pet model', () => {
         assert.ok(update.events.some(event => event.kind === 'evolved'));
     });
 
-    test('level curve: 15 * (L - 1)^2 XP per level, no cap', () => {
-        assert.deepStrictEqual([1, 2, 10, 25, 50].map(xpForLevel), [0, 15, 1215, 8640, 36015]);
+    test('level curve: 25 * (L - 1)^2 XP per level, no cap', () => {
+        assert.deepStrictEqual([1, 2, 10, 25, 50].map(xpForLevel), [0, 25, 2025, 14400, 60025]);
         assert.strictEqual(levelOf(0), 1);
-        assert.strictEqual(levelOf(14), 1);
-        assert.strictEqual(levelOf(15), 2);
+        assert.strictEqual(levelOf(24), 1);
+        assert.strictEqual(levelOf(25), 2);
         assert.strictEqual(levelOf(xpForLevel(120)), 120);
         assert.strictEqual(levelOf(xpForLevel(120) - 1), 119);
     });
@@ -104,7 +104,7 @@ suite('pet model', () => {
 
     test('warns once when fullness runs out', () => {
         const state = hatched({ fullness: 1 });
-        const minutesToEmpty = 1 / RULES.fullnessDecayPerMinute;
+        const minutesToEmpty = Math.ceil(1 / RULES.fullnessDecayPerMinute);
         const first = advance(state, minutesToEmpty * MINUTE);
         assert.strictEqual(first.state.fullness, 0);
         assert.strictEqual(first.events.filter(event => event.kind === 'starving').length, 1);
@@ -144,10 +144,10 @@ suite('pet model', () => {
         assert.strictEqual(later.state.xp, first.state.xp + RULES.xpPerActivity.edit);
     });
 
-    test('Claude working minutes are never throttled by edits', () => {
+    test('Claude work is never throttled by edits', () => {
         const edited = recordActivity(hatched({ lastActivityAt: T0 }), 'edit', T0 + 1).state;
-        const minute = recordActivity(edited, 'claudeMinute', T0 + 2).state;
-        assert.strictEqual(minute.xp, edited.xp + RULES.xpPerActivity.claudeMinute);
+        const worked = recordActivity(edited, 'claudeWork', T0 + 2).state;
+        assert.strictEqual(worked.xp, edited.xp + RULES.xpPerActivity.claudeWork);
     });
 
     test('prompts are not throttled', () => {

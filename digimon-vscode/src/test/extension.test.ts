@@ -87,7 +87,7 @@ suite('Extension Test Suite', () => {
 			const before = api.state().xp;
 			append('/somewhere/else', 'outside');
 			append(path.join(workspace, 'src'), 'inside');
-			assert.strictEqual(await xpChange(api, before), 3);
+			assert.strictEqual(await xpChange(api, before), 5);
 		});
 	});
 
@@ -97,7 +97,7 @@ suite('Extension Test Suite', () => {
 		await withEventLog('all', async append => {
 			const before = api.state().xp;
 			append('/somewhere/else', 'elsewhere');
-			assert.strictEqual(await xpChange(api, before), 3);
+			assert.strictEqual(await xpChange(api, before), 5);
 		});
 	});
 });

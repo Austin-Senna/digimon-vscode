@@ -1,5 +1,11 @@
 # Change Log
 
+## [0.1.6] - 2026-09-30
+
+- Faster, finer-grained XP: 1 per 3 seconds of editing, 5 per save (once every 30 seconds), 10 per commit (once a minute), 3 per terminal command (once every 10 seconds), 5 per Claude prompt, and 2 per 30 seconds of Claude work per session.
+- To match, levels cost more (25 × (L − 1)² XP), eggs come every 5,000 XP, food costs twice as much (meat and vitamins 100, sirloin 300), and hunger runs 25% faster. Overall your Digimon grows about twice as fast, and keeping it fed matters more.
+- Existing saves are converted on load: every buddy keeps its level, egg progress carries over, and bits keep their buying power.
+
 ## [0.1.5] - 2026-09-30
 
 - Every Claude Code session now feeds your Digimon, including ones started in another terminal or folder, not just sessions working in the open workspace. Set `digimon.claude.scope` to `workspace` for the old behavior.

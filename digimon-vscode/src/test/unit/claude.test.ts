@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { CLAUDE_MINUTE_MS, creditClaudeEvent } from '../../claude/credit';
+import { CLAUDE_WORK_MS, creditClaudeEvent } from '../../claude/credit';
 import { ClaudeEvent, SESSION_STALE_MS, SessionTracker, isDescendant, isWithin, parseEventLine } from '../../claude/events';
 import { GameState, activeBuddy, createGame } from '../../model/game';
 import { RULES } from '../../model/pet';
@@ -86,7 +86,7 @@ suite('claude events', () => {
 });
 
 suite('claude credit', () => {
-    const MINUTE = CLAUDE_MINUTE_MS;
+    const MINUTE = 60_000;
 
     /** Apply events in order, as one window reading the log would. */
     function credit(game: GameState,
@@ -108,15 +108,15 @@ suite('claude credit', () => {
         assert.strictEqual(secondWindow.state, firstWindow.state, 'the second window changes nothing');
     });
 
-    test('work time between events is credited in whole minutes, carrying the remainder', () => {
+    test('work time between events is credited in whole units, carrying the remainder', () => {
         const start = createGame(T0, () => 0);
-        const afterTwo = credit(start,
+        const state = credit(start,
             event({ event: 'prompt', t: T0 }),
-            event({ event: 'tool_start', t: T0 + 90_000 }),
-            event({ event: 'tool_done', t: T0 + 150_000 }),
+            event({ event: 'tool_start', t: T0 + 2 * CLAUDE_WORK_MS + 5_000 }),
+            event({ event: 'tool_done', t: T0 + 3 * CLAUDE_WORK_MS + 20_000 }),
         );
-        assert.strictEqual(xp(afterTwo), xp(start) + RULES.xpPerActivity.prompt + 2 * RULES.xpPerActivity.claudeMinute);
-        assert.strictEqual(afterTwo.claudeSessions.s1.bankedMs, 30_000);
+        assert.strictEqual(xp(state), xp(start) + RULES.xpPerActivity.prompt + 3 * RULES.xpPerActivity.claudeWork);
+        assert.strictEqual(state.claudeSessions.s1.bankedMs, 20_000);
     });
 
     test('time spent waiting on the user or idle earns nothing', () => {
@@ -136,7 +136,7 @@ suite('claude credit', () => {
             event({ event: 'tool_start', t: T0 }),
             event({ event: 'tool_done', t: T0 + 8 * 60 * MINUTE }),
         );
-        assert.strictEqual(xp(state), xp(start) + (SESSION_STALE_MS / MINUTE) * RULES.xpPerActivity.claudeMinute);
+        assert.strictEqual(xp(state), xp(start) + (SESSION_STALE_MS / CLAUDE_WORK_MS) * RULES.xpPerActivity.claudeWork);
     });
 
     test('an event older than the last credited one is skipped', () => {
