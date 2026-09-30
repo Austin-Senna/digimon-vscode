@@ -6,8 +6,7 @@ import { ClaudeEvent, ClaudeStatus, SessionTracker, WorkTimer, isWithin, parseEv
 import { LineTailer } from './tailer';
 import { terminalRunning } from './terminal';
 
-/** `cheer` is a happy hop plus a shout bubble, for when Claude finishes a turn. */
-export type ClaudeAnimation = 'cheer' | 'refuse' | 'sad';
+export type ClaudeAnimation = 'happy' | 'refuse' | 'sad';
 
 export interface ClaudeListener {
     /** `waiting` is how many sessions in this workspace are blocked on the user. */
@@ -16,7 +15,7 @@ export interface ClaudeListener {
 }
 
 const ANIMATIONS: Partial<Record<ClaudeEvent['event'], ClaudeAnimation>> = {
-    stop: 'cheer',
+    stop: 'happy',
     tool_failed: 'refuse',
     error: 'sad',
 };

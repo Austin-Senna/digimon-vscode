@@ -540,49 +540,7 @@ button {
     }
 }
 
-/* Emote bubbles: a small speech bubble above the pet holding one pixel icon. */
-.emote {
-    position: absolute;
-    z-index: 3;
-    display: grid;
-    place-items: center;
-    width: 34px;
-    height: 30px;
-    border: 2px solid #1b1b1b;
-    border-radius: 8px;
-    background: #f7f7f2;
-    pointer-events: none;
-    animation: bubble-pop 0.18s steps(3, end);
-}
-
-.emote::after {
-    content: '';
-    position: absolute;
-    bottom: -7px;
-    left: 9px;
-    width: 8px;
-    height: 8px;
-    border-right: 2px solid #1b1b1b;
-    border-bottom: 2px solid #1b1b1b;
-    background: #f7f7f2;
-    transform: skewX(-30deg) rotate(45deg) scale(0.8);
-}
-
-.emote[hidden] {
-    display: none;
-}
-
-.emote svg {
-    width: 20px;
-    height: 20px;
-}
-
-@keyframes bubble-pop {
-    from { transform: scale(0.4); }
-    to   { transform: scale(1); }
-}
-
-/* Floating hearts, level-up text, and sparkles. */
+/* Floating reaction icons (hearts, meat, sweat), level-up text, and sparkles. */
 .fx {
     position: absolute;
     inset: 0;
@@ -597,7 +555,7 @@ button {
 
 .float svg {
     width: 14px;
-    height: 12px;
+    height: 14px;
 }
 
 @keyframes float-up {
@@ -801,7 +759,6 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .emote,
     .float,
     .level-up,
     .sparkle,
