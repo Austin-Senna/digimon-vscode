@@ -31,12 +31,12 @@ export const RULES = {
     /** Time only advances while VS Code is open; longer gaps between ticks are clamped to this. */
     maxTickGapMs: 5 * MINUTE,
     /**
-     * XP per rewarded activity. `claudeMinute` is one minute of a Claude session working in this workspace;
+     * XP per rewarded activity. `claudeMinute` is one minute of a Claude session working;
      * `save` only counts when the file had unsaved changes (checked by the caller).
      */
-    xpPerActivity: { edit: 3, save: 5, commit: 10, prompt: 3, claudeMinute: 2 } as Record<ActivityKind, number>,
+    xpPerActivity: { edit: 3, save: 5, commit: 10, command: 2, prompt: 3, claudeMinute: 2 } as Record<ActivityKind, number>,
     /** Minimum gap between rewards of the same kind, so mashing keys, saves, or empty commits earns nothing extra. */
-    cooldownMs: { edit: 30 * SECOND, save: MINUTE, commit: 5 * MINUTE } as Record<CooldownKind, number>,
+    cooldownMs: { edit: 30 * SECOND, save: MINUTE, commit: 5 * MINUTE, command: 30 * SECOND } as Record<CooldownKind, number>,
     exhaustedXpMultiplier: 0.5,
 };
 
@@ -59,17 +59,19 @@ export interface PetState {
     readonly lastEditXpAt: number;
     readonly lastSaveXpAt: number;
     readonly lastCommitXpAt: number;
+    readonly lastCommandXpAt: number;
 }
 
-/** `prompt` and `claudeMinute` come from Claude Code sessions working in this workspace. */
-export type ActivityKind = 'edit' | 'save' | 'commit' | 'prompt' | 'claudeMinute';
+/** `command` is a command run in a VS Code terminal; `prompt` and `claudeMinute` come from Claude Code sessions. */
+export type ActivityKind = 'edit' | 'save' | 'commit' | 'command' | 'prompt' | 'claudeMinute';
 
-export type CooldownKind = 'edit' | 'save' | 'commit';
+export type CooldownKind = 'edit' | 'save' | 'commit' | 'command';
 
-const COOLDOWN_FIELDS: Record<CooldownKind, 'lastEditXpAt' | 'lastSaveXpAt' | 'lastCommitXpAt'> = {
+const COOLDOWN_FIELDS: Record<CooldownKind, 'lastEditXpAt' | 'lastSaveXpAt' | 'lastCommitXpAt' | 'lastCommandXpAt'> = {
     edit: 'lastEditXpAt',
     save: 'lastSaveXpAt',
     commit: 'lastCommitXpAt',
+    command: 'lastCommandXpAt',
 };
 
 /** The state field recording when `kind` last earned XP, or undefined for activities with no cooldown. */
@@ -129,6 +131,7 @@ export function createEgg(now: number,
         lastEditXpAt: 0,
         lastSaveXpAt: 0,
         lastCommitXpAt: 0,
+        lastCommandXpAt: 0,
     };
 }
 
@@ -290,7 +293,7 @@ export function activityEffort(state: PetState,
 
 const NUMBER_FIELDS = ['xp', 'fullness', 'energy', 'ageMs', 'bornAt', 'lastTickAt', 'lastActivityAt', 'lastEditXpAt'] as const;
 /** Added after the first release; older saves read them as never used. */
-const OPTIONAL_NUMBER_FIELDS = ['lastSaveXpAt', 'lastCommitXpAt'] as const;
+const OPTIONAL_NUMBER_FIELDS = ['lastSaveXpAt', 'lastCommitXpAt', 'lastCommandXpAt'] as const;
 
 /**
  * Accept only a well-formed state for a line that still exists, keeping just the known fields.

@@ -2,7 +2,10 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { ClaudeEvent, MAX_WORK_STEP_MS, SESSION_STALE_MS, SessionTracker, WorkTimer, isDescendant, isWithin, parseEventLine } from '../../claude/events';
+import { CLAUDE_MINUTE_MS, creditClaudeEvent } from '../../claude/credit';
+import { ClaudeEvent, SESSION_STALE_MS, SessionTracker, isDescendant, isWithin, parseEventLine } from '../../claude/events';
+import { GameState, activeBuddy, createGame } from '../../model/game';
+import { RULES } from '../../model/pet';
 import { LineTailer } from '../../claude/tailer';
 
 const T0 = 1_790_708_048_547;
@@ -67,23 +70,6 @@ suite('claude events', () => {
         assert.deepStrictEqual(tracker.sessions(T0), [{ session: 'a', status: 'waiting', cwd: '/work/a', ppid: 10, lastSeen: T0 }]);
     });
 
-    test('work timer credits whole minutes per working session', () => {
-        const timer = new WorkTimer(60_000);
-        assert.strictEqual(timer.advance(T0, 1), 0);
-        assert.strictEqual(timer.advance(T0 + 30_000, 1), 0);
-        assert.strictEqual(timer.advance(T0 + 60_000, 0), 0);
-        assert.strictEqual(timer.advance(T0 + 90_000, 1), 1);
-        assert.strictEqual(timer.advance(T0 + 120_000, 2), 1);
-        assert.strictEqual(timer.advance(T0 + 150_000, 2), 1);
-    });
-
-    test('work timer caps a long gap, e.g. after sleep', () => {
-        const timer = new WorkTimer(60_000);
-        timer.advance(T0, 1);
-        assert.strictEqual(timer.advance(T0 + 60 * 60_000, 1), 0);
-        assert.strictEqual(MAX_WORK_STEP_MS < 60_000, true);
-    });
-
     test('isDescendant walks up the process tree', () => {
         const parents = new Map([[40, 30], [30, 20], [20, 1], [99, 1]]);
         assert.ok(isDescendant(40, 20, parents));
@@ -96,6 +82,76 @@ suite('claude events', () => {
         const tracker = new SessionTracker();
         tracker.apply(event({ event: 'needs_input' }));
         assert.strictEqual(tracker.status(T0 + SESSION_STALE_MS + 1), 'idle');
+    });
+});
+
+suite('claude credit', () => {
+    const MINUTE = CLAUDE_MINUTE_MS;
+
+    /** Apply events in order, as one window reading the log would. */
+    function credit(game: GameState,
+        ...events: ClaudeEvent[]
+    ): GameState {
+        return events.reduce((state, next) => creditClaudeEvent(state, next, next.t).state, game);
+    }
+
+    function xp(game: GameState): number {
+        return activeBuddy(game).xp;
+    }
+
+    test('a prompt read by two windows is credited once', () => {
+        const start = createGame(T0, () => 0);
+        const prompt = event({ event: 'prompt' });
+        const firstWindow = creditClaudeEvent(start, prompt, T0);
+        const secondWindow = creditClaudeEvent(firstWindow.state, prompt, T0 + 500);
+        assert.strictEqual(xp(firstWindow.state), xp(start) + RULES.xpPerActivity.prompt);
+        assert.strictEqual(secondWindow.state, firstWindow.state, 'the second window changes nothing');
+    });
+
+    test('work time between events is credited in whole minutes, carrying the remainder', () => {
+        const start = createGame(T0, () => 0);
+        const afterTwo = credit(start,
+            event({ event: 'prompt', t: T0 }),
+            event({ event: 'tool_start', t: T0 + 90_000 }),
+            event({ event: 'tool_done', t: T0 + 150_000 }),
+        );
+        assert.strictEqual(xp(afterTwo), xp(start) + RULES.xpPerActivity.prompt + 2 * RULES.xpPerActivity.claudeMinute);
+        assert.strictEqual(afterTwo.claudeSessions.s1.bankedMs, 30_000);
+    });
+
+    test('time spent waiting on the user or idle earns nothing', () => {
+        const start = createGame(T0, () => 0);
+        const state = credit(start,
+            event({ event: 'needs_input', t: T0 }),
+            event({ event: 'tool_start', t: T0 + 5 * MINUTE }),
+            event({ event: 'stop', t: T0 + 5 * MINUTE + 1 }),
+            event({ event: 'prompt', t: T0 + 10 * MINUTE }),
+        );
+        assert.strictEqual(xp(state), xp(start) + RULES.xpPerActivity.prompt);
+    });
+
+    test('a long silent gap, e.g. a suspended laptop, is capped', () => {
+        const start = createGame(T0, () => 0);
+        const state = credit(start,
+            event({ event: 'tool_start', t: T0 }),
+            event({ event: 'tool_done', t: T0 + 8 * 60 * MINUTE }),
+        );
+        assert.strictEqual(xp(state), xp(start) + (SESSION_STALE_MS / MINUTE) * RULES.xpPerActivity.claudeMinute);
+    });
+
+    test('an event older than the last credited one is skipped', () => {
+        const start = createGame(T0, () => 0);
+        const state = credit(start, event({ event: 'tool_start', t: T0 + 1_000 }));
+        assert.strictEqual(creditClaudeEvent(state, event({ event: 'prompt', t: T0 }), T0 + 1_000).state, state);
+    });
+
+    test('sessions are tracked separately and pruned once stale', () => {
+        const start = createGame(T0, () => 0);
+        const both = credit(start, event({ session: 'a', t: T0 }), event({ session: 'b', t: T0 + 1 }));
+        assert.deepStrictEqual(Object.keys(both.claudeSessions).sort(), ['a', 'b']);
+        const later = T0 + SESSION_STALE_MS + MINUTE;
+        const pruned = creditClaudeEvent(both, event({ session: 'c', t: later }), later).state;
+        assert.deepStrictEqual(Object.keys(pruned.claudeSessions), ['c']);
     });
 });
 

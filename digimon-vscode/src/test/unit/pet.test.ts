@@ -156,8 +156,8 @@ suite('pet model', () => {
         assert.strictEqual(update.state.xp, state.xp + RULES.xpPerActivity.prompt);
     });
 
-    test('saves and commits are rewarded at most once per cooldown', () => {
-        for (const kind of ['save', 'commit'] as const) {
+    test('saves, commits, and terminal commands are rewarded at most once per cooldown', () => {
+        for (const kind of ['save', 'commit', 'command'] as const) {
             const state = hatched({ lastActivityAt: T0 });
             const first = recordActivity(state, kind, T0 + 1).state;
             assert.strictEqual(first.xp, state.xp + RULES.xpPerActivity[kind], kind);
@@ -249,10 +249,11 @@ suite('pet model', () => {
     });
 
     test('parseState treats cooldowns missing from older saves as never used', () => {
-        const { lastSaveXpAt: _save, lastCommitXpAt: _commit, ...old } = hatched();
+        const { lastSaveXpAt: _save, lastCommitXpAt: _commit, lastCommandXpAt: _command, ...old } = hatched();
         const parsed = parseState(old)!;
         assert.strictEqual(parsed.lastSaveXpAt, 0);
         assert.strictEqual(parsed.lastCommitXpAt, 0);
+        assert.strictEqual(parsed.lastCommandXpAt, 0);
     });
 
     test('parseState drops removed care-mistake fields and maps the old Numemon branch', () => {

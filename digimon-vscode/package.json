@@ -2,7 +2,7 @@
   "name": "digimon-buddy",
   "displayName": "Digimon Buddy",
   "description": "A V-Pet Digimon in your sidebar that grows while you and Claude Code write code.",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "AustinSenna",
   "repository": {
     "type": "git",
@@ -112,7 +112,20 @@
         "digimon.claude.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Let Claude Code sessions working in this workspace feed XP to your Digimon and show their status on its screen. Requires the digimon-claude hooks."
+          "description": "Let Claude Code sessions feed XP to your Digimon and show their status on its screen. Requires the digimon-claude hooks."
+        },
+        "digimon.claude.scope": {
+          "type": "string",
+          "default": "all",
+          "enum": [
+            "all",
+            "workspace"
+          ],
+          "enumDescriptions": [
+            "Every Claude Code session on this machine, wherever it runs. Each session is credited once, however many windows are open.",
+            "Only sessions working in this window's folders."
+          ],
+          "description": "Which Claude Code sessions feed your Digimon and show on its screen."
         },
         "digimon.claude.eventsPath": {
           "type": "string",

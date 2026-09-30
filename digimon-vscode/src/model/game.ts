@@ -3,7 +3,7 @@ import {
 } from './pet';
 import { Branch, LINES } from './species';
 
-export const GAME_VERSION = 4;
+export const GAME_VERSION = 5;
 
 export const ROSTER = {
     maxBuddies: 6,
@@ -25,6 +25,19 @@ export interface Buddy extends PetState {
 /** Line ids to choose between for one earned egg. */
 export type EggOffer = readonly string[];
 
+/**
+ * How much of one Claude session has been credited. It lives in the shared save so that every window reading the
+ * event log credits each event once between them.
+ */
+export interface ClaudeSessionCredit {
+    /** Time of the last event credited; events at or before it are already paid for. */
+    readonly lastT: number;
+    /** Whether the session was working after that event, so the gap to the next one counts as work. */
+    readonly working: boolean;
+    /** Work time toward the next whole minute. */
+    readonly bankedMs: number;
+}
+
 /** Everything the player owns. Only the active buddy lives in real time; the rest are frozen. */
 export interface GameState {
     readonly version: typeof GAME_VERSION;
@@ -39,6 +52,8 @@ export interface GameState {
     /** Eggs granted so far from effort milestones. */
     readonly eggsGranted: number;
     readonly nextBuddyId: number;
+    /** Crediting progress per recent Claude session, keyed by session id. */
+    readonly claudeSessions: Readonly<Record<string, ClaudeSessionCredit>>;
 }
 
 export type GameEvent =
@@ -229,7 +244,26 @@ export function parseGame(raw: unknown): GameState | undefined {
         effort: candidate.effort,
         eggsGranted: money.eggsGranted,
         nextBuddyId: candidate.nextBuddyId,
+        claudeSessions: candidate.version >= 5 ? parseClaudeSessions(candidate.claudeSessions) : {},
     };
+}
+
+/**
+ * Bookkeeping, not progress: a malformed map is dropped rather than failing the save. At worst a session's
+ * next event is credited twice or a partial minute is lost.
+ */
+function parseClaudeSessions(raw: unknown): Record<string, ClaudeSessionCredit> {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+        return {};
+    }
+    const sessions: Record<string, ClaudeSessionCredit> = {};
+    for (const [id, value] of Object.entries(raw)) {
+        const credit = value as Partial<ClaudeSessionCredit> | null;
+        if (credit && Number.isFinite(credit.lastT) && typeof credit.working === 'boolean' && Number.isFinite(credit.bankedMs)) {
+            sessions[id] = { lastT: credit.lastT!, working: credit.working, bankedMs: credit.bankedMs! };
+        }
+    }
+    return sessions;
 }
 
 function parseOffers(raw: unknown): EggOffer[] | undefined {
@@ -276,6 +310,7 @@ function withFirstBuddy(pet: PetState,
         effort: 0,
         eggsGranted: 0,
         nextBuddyId: 2,
+        claudeSessions: {},
     };
 }
 

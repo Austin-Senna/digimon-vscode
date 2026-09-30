@@ -8,7 +8,7 @@ A Digimon that grows while Claude Code works. It lives in VS Code's secondary si
 
 ## It sees Claude Code
 
-Run **Digimon: Connect Claude Code** (or accept the prompt on first start). From then on, every Claude Code session working in your workspace feeds your Digimon:
+Run **Digimon: Connect Claude Code** (or accept the prompt on first start). From then on, every Claude Code session feeds your Digimon, whether it runs in VS Code or another terminal:
 
 | When Claude... | Your Digimon |
 | --- | --- |
@@ -24,11 +24,13 @@ Its screen shows "Claude is working" while a session runs. When Claude is waitin
 
 **It only records what the pet needs:** the event type, tool name, session id, folder, and time. Never your prompts, code, or tool output.
 
+Each session is credited once, however many VS Code windows you have open. To count only sessions working in the current window's folders, set `digimon.claude.scope` to `workspace`.
+
 Connecting asks first and backs up your Claude settings file. **Digimon: Disconnect Claude Code** undoes it. Requires Python 3.
 
 ## It grows
 
-You start with a random Digitama. XP from Claude and from your own coding drives it through seven stages. Coding earns 3 XP per 30 seconds of editing, 5 per save that writes real changes (once a minute), and 10 per git commit (once every 5 minutes), so mashing save or making empty commits earns nothing extra.
+You start with a random Digitama. XP from Claude and from your own coding drives it through seven stages. Coding earns 3 XP per 30 seconds of editing, 5 per save that writes real changes (once a minute), 10 per git commit (once every 5 minutes), and 2 per command you run in a VS Code terminal (once every 30 seconds), so mashing save, making empty commits, or spamming `ls` earns nothing extra.
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/Austin-Senna/digimon-vscode/main/digimon-vscode/docs/images/evolution-line.png" alt="Agumon's line from egg to Ultimate: Agu Digitama, Zurumon, Koromon, Agumon, Greymon, MetalGreymon, WarGreymon" width="640">

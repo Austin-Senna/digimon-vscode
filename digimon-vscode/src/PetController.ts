@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { creditClaudeEvent } from './claude/credit';
+import { ClaudeEvent } from './claude/events';
 import { GameState, GameEvent, GameUpdate, activeBuddy, chooseEgg, chooseGameBranch, feedGame, recordGameActivity, releaseBuddy, switchBuddy, tickGame, createGame } from './model/game';
 import { ActivityKind, FoodKind, PetState } from './model/pet';
 import { Branch } from './model/species';
@@ -42,6 +44,11 @@ export class PetController implements vscode.Disposable {
 
     recordActivity(kind: ActivityKind): void {
         this._apply(now => recordGameActivity(this._store.load(now), kind, now));
+    }
+
+    /** Credit a Claude event; safe to call from every window, since each event is credited once. */
+    recordClaudeEvent(event: ClaudeEvent): void {
+        this._apply(now => creditClaudeEvent(this._store.load(now), event, now));
     }
 
     feed(food: FoodKind): void {

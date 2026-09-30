@@ -43,5 +43,12 @@ It records event kinds, tool names, session ids, and working directories. It nev
 
 ## Reader
 
-`src/claude/tailer.ts` polls the file every 500 ms from its current end, and `src/claude/events.ts` parses and filters lines
-to sessions whose `cwd` is inside the window's workspace folders.
+`src/claude/tailer.ts` polls the file every 500 ms from its current end, and `src/claude/events.ts` parses lines.
+With `digimon.claude.scope` set to `workspace`, only sessions whose `cwd` is inside the window's workspace folders
+count; the default, `all`, takes every session.
+
+Every VS Code window runs its own reader, but they share one save. `src/claude/credit.ts` makes crediting
+idempotent: the save keeps, per session, the `t` of the last event credited, and a window skips any event at or
+before it. Working minutes come from the gaps between a session's events while it was working (capped at 10
+minutes, the point where a silent session counts as gone), not from each window's clock. A side effect: an event
+logged after a newer one from the same session (see the async note above) is not credited.

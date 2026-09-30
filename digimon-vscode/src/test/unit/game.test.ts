@@ -179,6 +179,20 @@ suite('game', () => {
         assert.ok(activeBuddy(after).xp > 0);
     });
 
+    test('version 4 saves start with no Claude sessions', () => {
+        const { claudeSessions: _, ...rest } = game();
+        const migrated = parseGame(JSON.parse(JSON.stringify({ ...rest, version: 4 })))!;
+        assert.strictEqual(migrated.version, GAME_VERSION);
+        assert.deepStrictEqual(migrated.claudeSessions, {});
+    });
+
+    test('malformed Claude session bookkeeping is dropped, not the save', () => {
+        const sessions = { good: { lastT: T0, working: true, bankedMs: 0 }, bad: { lastT: 'soon' } };
+        const parsed = parseGame({ ...game(), claudeSessions: sessions })!;
+        assert.deepStrictEqual(parsed.claudeSessions, { good: sessions.good });
+        assert.deepStrictEqual(parseGame({ ...game(), claudeSessions: 'nope' })!.claudeSessions, {});
+    });
+
     test('parseGame round-trips and rejects junk', () => {
         const state = earn(game(), ROSTER.effortPerEgg).state;
         assert.deepStrictEqual(parseGame(JSON.parse(JSON.stringify(state))), state);

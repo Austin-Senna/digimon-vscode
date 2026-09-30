@@ -1,5 +1,12 @@
 # Change Log
 
+## [0.1.5] - 2026-09-30
+
+- Every Claude Code session now feeds your Digimon, including ones started in another terminal or folder, not just sessions working in the open workspace. Set `digimon.claude.scope` to `workspace` for the old behavior.
+- Fix: with the same folder open in two VS Code windows, Claude XP was credited once per window. Each Claude event is now credited once, however many windows are open.
+- Commands you run in VS Code's terminal earn 2 XP, at most once every 30 seconds. Needs shell integration, which VS Code turns on by default for bash, zsh, fish, and PowerShell.
+- Claude's working minutes are credited as each session's events arrive, so XP for a long tool call (like a test run) lands when it finishes.
+
 ## [0.1.4] - 2026-09-30
 
 - Reactions float up from your Digimon as small pixel icons instead of speech bubbles: hearts after eating or when you click it, a meat when it's hungry, a sweat drop when it's worn out.

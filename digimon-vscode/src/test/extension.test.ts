@@ -47,28 +47,57 @@ suite('Extension Test Suite', () => {
 		assert.strictEqual(api.state().xp, afterSave, 'saving an unchanged file earns nothing');
 	});
 
-	test('Claude prompts in this workspace earn XP; other workspaces do not', async function () {
-		this.timeout(10_000);
-		const api = await activateExtension();
-		const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-		assert.ok(workspace, 'test runs with a workspace folder');
-
+	/** Point the extension at a fresh event log with `scope`, run `body`, then restore the settings. */
+	async function withEventLog(scope: 'all' | 'workspace',
+		body: (append: (cwd: string, session: string) => void) => Promise<void>,
+	): Promise<void> {
 		const log = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'digimon-events-')), 'events.jsonl');
 		fs.writeFileSync(log, '');
 		const config = vscode.workspace.getConfiguration('digimon.claude');
+		// Restore rather than clear: the test profile points eventsPath away from the real log (.vscode-test.mjs).
+		const previousPath = config.inspect<string>('eventsPath')?.globalValue;
+		const previousScope = config.inspect<string>('scope')?.globalValue;
+		await config.update('scope', scope, vscode.ConfigurationTarget.Global);
 		await config.update('eventsPath', log, vscode.ConfigurationTarget.Global);
 		try {
-			const line = (cwd: string) => JSON.stringify({ v: 1, t: Date.now(), session: 's', event: 'prompt', subagent: false, cwd }) + '\n';
-			const before = api.state().xp;
-
-			fs.appendFileSync(log, line('/somewhere/else'));
-			fs.appendFileSync(log, line(path.join(workspace, 'src')));
-			for (let i = 0; i < 50 && api.state().xp === before; i++) {
-				await new Promise(resolve => setTimeout(resolve, 100));
-			}
-			assert.strictEqual(api.state().xp, before + 3);
+			await body((cwd, session) => fs.appendFileSync(log, JSON.stringify({ v: 1, t: Date.now(), session, event: 'prompt', subagent: false, cwd }) + '\n'));
 		} finally {
-			await config.update('eventsPath', undefined, vscode.ConfigurationTarget.Global);
+			await config.update('eventsPath', previousPath, vscode.ConfigurationTarget.Global);
+			await config.update('scope', previousScope, vscode.ConfigurationTarget.Global);
 		}
+	}
+
+	async function xpChange(api: DigimonApi,
+		before: number,
+	): Promise<number> {
+		for (let i = 0; i < 50 && api.state().xp === before; i++) {
+			await new Promise(resolve => setTimeout(resolve, 100));
+		}
+		// Give a second event the same chance to land before measuring.
+		await new Promise(resolve => setTimeout(resolve, 1_000));
+		return api.state().xp - before;
+	}
+
+	test('with scope workspace, only Claude prompts in this workspace earn XP', async function () {
+		this.timeout(15_000);
+		const api = await activateExtension();
+		const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		assert.ok(workspace, 'test runs with a workspace folder');
+		await withEventLog('workspace', async append => {
+			const before = api.state().xp;
+			append('/somewhere/else', 'outside');
+			append(path.join(workspace, 'src'), 'inside');
+			assert.strictEqual(await xpChange(api, before), 3);
+		});
+	});
+
+	test('by default, Claude prompts anywhere earn XP', async function () {
+		this.timeout(15_000);
+		const api = await activateExtension();
+		await withEventLog('all', async append => {
+			const before = api.state().xp;
+			append('/somewhere/else', 'elsewhere');
+			assert.strictEqual(await xpChange(api, before), 3);
+		});
 	});
 });

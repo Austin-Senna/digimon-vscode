@@ -117,29 +117,6 @@ export class SessionTracker {
     }
 }
 
-/** Longest stretch one `advance` may count, so a suspended laptop does not bank hours of "working". */
-export const MAX_WORK_STEP_MS = 30_000;
-
-/** Turns time Claude sessions spend working into whole session-minutes to credit (two sessions for a minute = 2). */
-export class WorkTimer {
-    private _banked = 0;
-    private _last: number | undefined;
-
-    constructor(private readonly _minuteMs = 60_000) {}
-
-    /** Record time since the last call for `sessions` working sessions; returns full session-minutes earned. */
-    advance(now: number,
-        sessions: number,
-    ): number {
-        const elapsed = this._last === undefined ? 0 : Math.min(Math.max(0, now - this._last), MAX_WORK_STEP_MS);
-        this._last = now;
-        this._banked += elapsed * sessions;
-        const minutes = Math.floor(this._banked / this._minuteMs);
-        this._banked -= minutes * this._minuteMs;
-        return minutes;
-    }
-}
-
 /** Whether `pid` is `ancestor` or below it, given each process's parent. */
 export function isDescendant(pid: number,
     ancestor: number,
@@ -155,7 +132,8 @@ export function isDescendant(pid: number,
     return false;
 }
 
-function statusAfter(kind: ClaudeEventKind): ClaudeStatus | undefined {
+/** The status a session has after `kind`, or undefined when the event does not change it. */
+export function statusAfter(kind: ClaudeEventKind): ClaudeStatus | undefined {
     switch (kind) {
         case 'prompt':
         case 'tool_start':

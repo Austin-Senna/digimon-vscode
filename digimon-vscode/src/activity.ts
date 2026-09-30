@@ -24,6 +24,14 @@ export function trackActivity(controller: PetController): vscode.Disposable {
                 controller.recordActivity('save');
             }
         }),
+        // Needs shell integration, which VS Code enables for bash, zsh, fish, and PowerShell by default.
+        // Only this window's terminals report here, so no other window can credit the same command.
+        // Credited on start: by the end event, zsh can report the command line as empty (confidence 0).
+        vscode.window.onDidStartTerminalShellExecution(event => {
+            if (event.execution.commandLine.value.trim() !== '') {
+                controller.recordActivity('command');
+            }
+        }),
     ];
 
     let disposed = false;
