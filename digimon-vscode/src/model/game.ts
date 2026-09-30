@@ -3,16 +3,18 @@ import {
 } from './pet';
 import { Branch, LINES } from './species';
 
-export const GAME_VERSION = 2;
+export const GAME_VERSION = 3;
 
 export const ROSTER = {
     maxBuddies: 6,
-    /** Lifetime effort per milestone reward. Milestones repeat: every 250 effort drops another meat, and so on. */
-    milestones: { meat: 250, vitamin: 1_000, sirloin: 2_500, egg: 3_000 } as Record<Milestone, number>,
-    startingFood: { meat: 3, vitamin: 0, sirloin: 0 } as Record<FoodKind, number>,
+    /** Lifetime effort per new egg; repeats forever. */
+    effortPerEgg: 3_000,
+    /** Bits earned per point of effort. */
+    bitsPerEffort: 1,
+    startingBits: 150,
+    /** Sirloin refills both meters, so it costs as much as three single-stat foods. */
+    foodPrices: { meat: 50, vitamin: 50, sirloin: 150 } as Record<FoodKind, number>,
 };
-
-export type Milestone = FoodKind | 'egg';
 
 export interface Buddy extends PetState {
     readonly id: string;
@@ -23,21 +25,21 @@ export interface GameState {
     readonly version: typeof GAME_VERSION;
     readonly activeId: string;
     readonly buddies: readonly Buddy[];
-    readonly food: Readonly<Record<FoodKind, number>>;
+    /** Money for food. Earned from effort, spent when buying food; evolution XP is never spent. */
+    readonly bits: number;
     /** Eggs earned while the roster was full; one joins whenever a slot opens. */
     readonly pendingEggs: number;
     /** Lifetime base XP from all activity, whether or not the pet could use it. */
     readonly effort: number;
-    /** How many of each milestone reward has been granted so far. */
-    readonly granted: Readonly<Record<Milestone, number>>;
+    /** Eggs granted so far from effort milestones. */
+    readonly eggsGranted: number;
     readonly nextBuddyId: number;
 }
 
 export type GameEvent =
     | PetEvent
-    | { kind: 'foodEarned'; food: FoodKind }
     | { kind: 'eggEarned'; waiting: boolean }
-    | { kind: 'noFood'; food: FoodKind }
+    | { kind: 'cannotAfford'; food: FoodKind }
     | { kind: 'switched'; id: string };
 
 export interface GameUpdate {
@@ -66,12 +68,9 @@ export function activeBuddy(game: GameState): Buddy {
     return buddy;
 }
 
-/** How far lifetime effort is into the current cycle of a milestone. */
-export function milestoneProgress(game: GameState,
-    milestone: Milestone,
-): { current: number; target: number } {
-    const target = ROSTER.milestones[milestone];
-    return { current: game.effort % target, target };
+/** How far lifetime effort is toward the next egg. */
+export function eggProgress(game: GameState): { current: number; target: number } {
+    return { current: game.effort % ROSTER.effortPerEgg, target: ROSTER.effortPerEgg };
 }
 
 export function tickGame(game: GameState,
@@ -91,23 +90,24 @@ export function recordGameActivity(game: GameState,
     if (update.state === active && effort === 0) {
         return { state: game, events: update.events };
     }
-    const next = replaceActive({ ...game, effort: game.effort + effort }, update.state);
-    const rewards = grantMilestones(next, now);
+    const next = replaceActive({ ...game, effort: game.effort + effort, bits: game.bits + effort * ROSTER.bitsPerEffort }, update.state);
+    const rewards = grantEggs(next, now);
     return { state: rewards.state, events: [...update.events, ...rewards.events] };
 }
 
+/** Buy one food and feed it to the active buddy. Nothing is charged if the buddy refuses it. */
 export function feedGame(game: GameState,
     food: FoodKind,
 ): GameUpdate {
-    if (game.food[food] <= 0) {
-        return { state: game, events: [{ kind: 'noFood', food }] };
+    const price = ROSTER.foodPrices[food];
+    if (game.bits < price) {
+        return { state: game, events: [{ kind: 'cannotAfford', food }] };
     }
     const update = feed(activeBuddy(game), food);
     if (update.state === activeBuddy(game)) {
         return { state: game, events: update.events };
     }
-    const next = { ...game, food: { ...game.food, [food]: game.food[food] - 1 } };
-    return { state: replaceActive(next, update.state), events: update.events };
+    return { state: replaceActive({ ...game, bits: game.bits - price }, update.state), events: update.events };
 }
 
 export function chooseGameBranch(game: GameState,
@@ -151,30 +151,56 @@ export function releaseBuddy(game: GameState,
     return { state: game.pendingEggs > 0 ? hatchPendingEgg(next, now, random) : next, events: [] };
 }
 
-/** Accept only a well-formed v2 game whose active buddy exists. */
+/**
+ * Accept a well-formed game whose active buddy exists, keeping only known fields.
+ * Version 2 saves held food items from milestones; they are refunded as bits at today's prices.
+ */
 export function parseGame(raw: unknown): GameState | undefined {
     if (typeof raw !== 'object' || raw === null) {
         return undefined;
     }
-    const candidate = raw as Partial<GameState>;
-    if (candidate.version !== GAME_VERSION || !Array.isArray(candidate.buddies) || typeof candidate.activeId !== 'string') {
+    const candidate = raw as Record<string, unknown>;
+    if ((candidate.version !== GAME_VERSION && candidate.version !== 2)
+        || !Array.isArray(candidate.buddies) || typeof candidate.activeId !== 'string') {
         return undefined;
     }
-    const buddies = candidate.buddies.map(buddy => {
+    const buddies = candidate.buddies.map((buddy: unknown) => {
         const pet = parseState(buddy);
-        return pet && typeof buddy?.id === 'string' ? { ...pet, id: buddy.id } : undefined;
+        const id = (buddy as { id?: unknown } | null)?.id;
+        return pet && typeof id === 'string' ? { ...pet, id } : undefined;
     });
-    const buddiesValid = buddies.every(buddy => buddy !== undefined);
-    const counts = (value: unknown, keys: readonly string[]) => typeof value === 'object' && value !== null
-        && keys.every(key => Number.isFinite((value as Record<string, unknown>)[key]));
-    const valid = buddiesValid
-        && candidate.buddies.some(buddy => buddy.id === candidate.activeId)
-        && counts(candidate.food, Object.keys(ROSTER.startingFood))
-        && counts(candidate.granted, Object.keys(ROSTER.milestones))
-        && Number.isFinite(candidate.pendingEggs)
-        && Number.isFinite(candidate.effort)
-        && Number.isFinite(candidate.nextBuddyId);
-    return valid ? { ...candidate, buddies } as GameState : undefined;
+    const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+    if (!buddies.every(buddy => buddy !== undefined) || !buddies.some(buddy => buddy!.id === candidate.activeId)
+        || !finite(candidate.pendingEggs) || !finite(candidate.effort) || !finite(candidate.nextBuddyId)) {
+        return undefined;
+    }
+    const money = candidate.version === 2 ? refundV2(candidate) : { bits: candidate.bits, eggsGranted: candidate.eggsGranted };
+    if (!money || !finite(money.bits) || !finite(money.eggsGranted)) {
+        return undefined;
+    }
+    return {
+        version: GAME_VERSION,
+        activeId: candidate.activeId,
+        buddies: buddies as Buddy[],
+        bits: money.bits,
+        pendingEggs: candidate.pendingEggs,
+        effort: candidate.effort,
+        eggsGranted: money.eggsGranted,
+        nextBuddyId: candidate.nextBuddyId,
+    };
+}
+
+function refundV2(save: Record<string, unknown>): { bits: unknown; eggsGranted: unknown } | undefined {
+    const food = save.food as Record<string, unknown> | undefined;
+    const granted = save.granted as Record<string, unknown> | undefined;
+    const kinds = Object.keys(ROSTER.foodPrices) as FoodKind[];
+    if (!food || !granted || !kinds.every(kind => Number.isFinite(food[kind]))) {
+        return undefined;
+    }
+    return {
+        bits: kinds.reduce((total, kind) => total + (food[kind] as number) * ROSTER.foodPrices[kind], 0),
+        eggsGranted: granted.egg,
+    };
 }
 
 function withFirstBuddy(pet: PetState,
@@ -185,10 +211,10 @@ function withFirstBuddy(pet: PetState,
         version: GAME_VERSION,
         activeId: first.id,
         buddies: [first],
-        food: { ...ROSTER.startingFood },
+        bits: ROSTER.startingBits,
         pendingEggs: 0,
         effort: 0,
-        granted: { meat: 0, vitamin: 0, sirloin: 0, egg: 0 },
+        eggsGranted: 0,
         nextBuddyId: 2,
     };
 }
@@ -202,28 +228,18 @@ function replaceActive(game: GameState,
     };
 }
 
-function grantMilestones(game: GameState,
+function grantEggs(game: GameState,
     now: number,
 ): GameUpdate {
     const events: GameEvent[] = [];
     let next = game;
-    for (const milestone of Object.keys(ROSTER.milestones) as Milestone[]) {
-        const due = Math.floor(next.effort / ROSTER.milestones[milestone]) - next.granted[milestone];
-        for (let i = 0; i < due; i++) {
-            if (milestone === 'egg') {
-                const waiting = next.buddies.length >= ROSTER.maxBuddies;
-                next = waiting ? { ...next, pendingEggs: next.pendingEggs + 1 } : addEgg(next, now);
-                events.push({ kind: 'eggEarned', waiting });
-            } else {
-                next = { ...next, food: { ...next.food, [milestone]: next.food[milestone] + 1 } };
-                events.push({ kind: 'foodEarned', food: milestone });
-            }
-        }
-        if (due > 0) {
-            next = { ...next, granted: { ...next.granted, [milestone]: next.granted[milestone] + due } };
-        }
+    const due = Math.floor(next.effort / ROSTER.effortPerEgg) - next.eggsGranted;
+    for (let i = 0; i < due; i++) {
+        const waiting = next.buddies.length >= ROSTER.maxBuddies;
+        next = waiting ? { ...next, pendingEggs: next.pendingEggs + 1 } : addEgg(next, now);
+        events.push({ kind: 'eggEarned', waiting });
     }
-    return { state: next, events };
+    return { state: due > 0 ? { ...next, eggsGranted: next.eggsGranted + due } : next, events };
 }
 
 function hatchPendingEgg(game: GameState,

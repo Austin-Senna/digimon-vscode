@@ -312,7 +312,6 @@ button {
 .energy-meter span { height: 12px; }
 .reward-meter { margin-top: 8px; }
 .reward-meter span { height: 4px; }
-#food-meter { --meter: var(--meat); }
 #egg-meter { --meter: var(--xp); }
 
 .readout h2 {
@@ -449,11 +448,13 @@ button {
     height: 24px;
 }
 
-.food .count {
-    position: absolute;
-    top: 4px;
-    right: 6px;
+.food .price {
     color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+}
+
+.food:not(:disabled) .price {
+    color: var(--energy);
 }
 
 .roster {

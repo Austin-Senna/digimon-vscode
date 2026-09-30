@@ -40,7 +40,7 @@
         },
     };
     const HEARTS = 4;
-    const SEGMENTS = { 'xp-meter': 24, energy: 8, 'food-meter': 20, 'egg-meter': 20 };
+    const SEGMENTS = { 'xp-meter': 24, energy: 8, 'egg-meter': 20 };
     const FRAME_MS = 500;
     const TRANSIENT_MS = 2000;
     const SIZE_PX = 64;
@@ -197,24 +197,24 @@
                 button.type = 'button';
                 button.className = 'food';
                 button.dataset.food = item.kind;
-                const count = document.createElement('span');
-                count.className = 'count';
                 const name = document.createElement('span');
                 name.textContent = item.name;
-                button.append(count, pixelArt(FOOD_ART[item.kind]), name);
+                const price = document.createElement('span');
+                price.className = 'price';
+                button.append(pixelArt(FOOD_ART[item.kind]), name, price);
                 return button;
             }));
         }
         state.food.forEach((item, i) => {
             const button = tray.children[i];
-            caption(button.querySelector('.count'), ['×', { num: item.count }]);
-            button.disabled = state.isEgg || item.count === 0;
-            const reason = state.isEgg ? 'Eggs do not eat' : item.count === 0 ? `Earn one every ${item.every} XP` : 'Click to feed';
+            const affordable = state.bits >= item.price;
+            caption(button.querySelector('.price'), [{ num: item.price }, ' bits']);
+            button.disabled = state.isEgg || !affordable;
+            const reason = state.isEgg ? 'Eggs do not eat' : affordable ? 'Click to buy and feed' : `Needs ${(item.price - state.bits).toLocaleString()} more bits`;
             button.title = `${item.name}: ${item.effect}. ${reason}.`;
-            button.setAttribute('aria-label', `Feed ${item.name}, ${item.count} left. ${item.effect}.`);
+            button.setAttribute('aria-label', `Buy ${item.name} for ${item.price} bits. ${item.effect}. ${reason}.`);
         });
-        fillMeter($('food-meter'), state.nextFood.current / state.nextFood.target);
-        caption($('food-caption'), ['Meat in ', { num: state.nextFood.target - state.nextFood.current }, ' XP']);
+        caption($('bits'), [{ num: state.bits }, ' bits']);
     }
 
     function renderRoster(state) {

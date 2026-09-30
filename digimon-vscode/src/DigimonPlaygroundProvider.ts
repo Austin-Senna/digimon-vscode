@@ -5,7 +5,7 @@ import { PetController } from './PetController';
 import { Appearance, resolveAppearance } from './appearance';
 import { ClaudeAnimation, ClaudeListener } from './claude/bridge';
 import { ClaudeStatus } from './claude/events';
-import { GameEvent, ROSTER, activeBuddy, milestoneProgress } from './model/game';
+import { GameEvent, ROSTER, activeBuddy, eggProgress } from './model/game';
 import { FOODS, FoodKind, Mood, PetState, RULES, isReadyToChoose, mood, species, xpForNextStage } from './model/pet';
 import { BRANCHES, Branch, STAGES, STAGE_LABELS, displayName, findLine, spritePath } from './model/species';
 
@@ -31,7 +31,7 @@ function claudeLabel(status: ClaudeStatus,
 const EVENT_ANIMATIONS: Partial<Record<GameEvent['kind'], Animation>> = {
     ate: 'eat',
     refused: 'refuse',
-    noFood: 'refuse',
+    cannotAfford: 'refuse',
     woke: 'happy',
     evolved: 'evolve',
     switched: 'happy',
@@ -141,15 +141,14 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             age: formatDuration(state.ageMs),
             claudeStatus: this._claudeStatus,
             claudeLabel: claudeLabel(this._claudeStatus, this._claudeWaiting),
+            bits: game.bits,
             food: (Object.keys(FOODS) as FoodKind[]).map(kind => ({
                 kind,
                 name: FOODS[kind].name,
-                count: game.food[kind],
+                price: ROSTER.foodPrices[kind],
                 effect: foodEffect(kind),
-                every: ROSTER.milestones[kind],
             })),
-            nextFood: milestoneProgress(game, 'meat'),
-            nextEgg: milestoneProgress(game, 'egg'),
+            nextEgg: eggProgress(game),
             roster: game.buddies.map(buddy => ({
                 id: buddy.id,
                 name: displayName(species(buddy)),

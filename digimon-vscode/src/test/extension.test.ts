@@ -20,11 +20,11 @@ suite('Extension Test Suite', () => {
 		}
 	});
 
-	test('starts a saved game with an egg and starting food', async () => {
+	test('starts a saved game with a buddy and a bits wallet', async () => {
 		const api = await activateExtension();
 		const game = api.game();
 		assert.strictEqual(game.buddies.length >= 1, true);
-		assert.ok(game.food.meat > 0 || game.effort > 0);
+		assert.ok(game.bits >= 0 && Number.isFinite(game.bits));
 	});
 
 	test('Claude prompts in this workspace earn XP; other workspaces do not', async function () {

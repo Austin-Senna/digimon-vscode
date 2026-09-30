@@ -23,7 +23,7 @@ Digitama → Baby I → Baby II → Child → Adult → Perfect → Ultimate.
 
 Your Digimon needs care:
 
-- **Fullness** drops over time. Feed it from the food tray under its screen. At zero it starves: it earns no XP and cannot evolve until fed.
+- **Fullness** drops over time. Buy it food from the tray under its screen. At zero it starves: it earns no XP and cannot evolve until fed.
 - **Energy** drains as it earns XP. At zero it is exhausted and earns half XP.
 - **Sleep** happens after 5 minutes without activity. Energy recovers while it sleeps.
 
@@ -33,19 +33,19 @@ Time only passes while VS Code is open, so a weekend away will not starve it.
 
 ## Food
 
-All food is earned. Every coding action adds to a lifetime effort counter, and milestones on it repeat forever:
+Food is bought with **bits**. Every XP you earn from activity also earns 1 bit, and buying food never costs evolution XP. Click a food to buy it and feed it right away:
 
-| Food | Earned every | Effect |
+| Food | Price | Effect |
 | --- | --- | --- |
-| Meat | 250 XP | +25 fullness |
-| Vitamin | 1,000 XP | +40 energy |
-| Sirloin | 2,500 XP | Refills fullness and energy |
+| Meat | 50 bits | +25 fullness |
+| Vitamin | 50 bits | +40 energy |
+| Sirloin | 150 bits | Refills fullness and energy |
 
-You start with 3 meat. Effort counts even while your Digimon is starving and earning no XP itself, so you can always code your way back to food. Food it would not benefit from (meat when full, anything for an egg) is refused and not used up.
+You start with 150 bits. Fullness drops 1 point a minute, so a full stomach lasts about 1h40m and one meat buys 25 minutes. Bits keep coming in even while your Digimon is starving and earning no XP itself, so you can always code your way back to food. Food it would not benefit from (meat when full, anything for an egg) is refused and you are not charged.
 
 ## Buddies
 
-Every 3,000 XP of effort earns a new egg, preferring lines you do not have yet. Up to 6 buddies fit in your roster; click one to make it active. Only the active buddy gets hungry, sleeps, and earns XP; the others stay frozen exactly as you left them. When the roster is full, new eggs wait until you release a buddy (**Digimon: Release Buddy**, which asks first).
+Every 3,000 XP of activity earns a new egg, preferring lines you do not have yet. Up to 6 buddies fit in your roster; click one to make it active. Only the active buddy gets hungry, sleeps, and earns XP; the others stay frozen exactly as you left them. When the roster is full, new eggs wait until you release a buddy (**Digimon: Release Buddy**, which asks first).
 
 ## Screen background
 
@@ -53,7 +53,7 @@ Run **Digimon: Change Screen Background** (the paint can in the view's title bar
 
 ## Your save
 
-Your buddies, food, and milestones are saved in one file, `game.json`, in VS Code's global storage for this extension (**Digimon: Open Save Folder** shows it). Every VS Code window reads and writes that same file, so progress made in one window is never overwritten by another.
+Your buddies, bits, and progress are saved in one file, `game.json`, in VS Code's global storage for this extension (**Digimon: Open Save Folder** shows it). Every VS Code window reads and writes that same file, so progress made in one window is never overwritten by another.
 
 There are 13 evolution lines, listed in [docs/evolution-lines.md](docs/evolution-lines.md) and defined in `src/model/species.ts`. Adding one is a data change; `npm run test:unit` checks that every sprite it references exists.
 

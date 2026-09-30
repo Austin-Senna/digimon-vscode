@@ -1,9 +1,9 @@
 import * as assert from 'assert';
 import {
-    GameState, ROSTER, activeBuddy, createGame, feedGame, migrateFromPet, milestoneProgress, parseGame,
+    GameState, ROSTER, activeBuddy, createGame, feedGame, migrateFromPet, parseGame,
     recordGameActivity, releaseBuddy, switchBuddy, tickGame,
 } from '../../model/game';
-import { RULES, createEgg } from '../../model/pet';
+import { FOODS, RULES, createEgg } from '../../model/pet';
 
 const MINUTE = 60_000;
 const T0 = 1_700_000_000_000;
@@ -28,11 +28,11 @@ function earn(state: GameState,
 }
 
 suite('game', () => {
-    test('starts with one egg and starting food', () => {
+    test('starts with one egg and starting bits', () => {
         const state = game();
         assert.strictEqual(state.buddies.length, 1);
         assert.strictEqual(activeBuddy(state).stage, 'digitama');
-        assert.deepStrictEqual(state.food, ROSTER.startingFood);
+        assert.strictEqual(state.bits, ROSTER.startingBits);
     });
 
     test('migrates a v1 pet as the first buddy', () => {
@@ -42,37 +42,52 @@ suite('game', () => {
         assert.strictEqual(activeBuddy(migrated).lastTickAt, T0 + MINUTE);
     });
 
-    test('food milestones repeat and reset', () => {
-        const { state, events } = earn(game(), ROSTER.milestones.meat * 2);
-        assert.strictEqual(state.food.meat, ROSTER.startingFood.meat + 2);
-        assert.strictEqual(events.filter(event => event.kind === 'foodEarned').length, 2);
-        assert.strictEqual(milestoneProgress(state, 'meat').current, state.effort % ROSTER.milestones.meat);
+    test('effort earns bits one for one', () => {
+        const { state } = earn(game(), 100);
+        assert.strictEqual(state.bits, ROSTER.startingBits + state.effort * ROSTER.bitsPerEffort);
     });
 
-    test('a starving pet still earns food, so it can never get stuck', () => {
-        const hungry = game({ food: { meat: 0, vitamin: 0, sirloin: 0 } });
-        const starving = { ...hungry, buddies: [{ ...activeBuddy(hungry), stage: 'child' as const, fullness: 0 }] };
-        const { state } = earn(starving, ROSTER.milestones.meat);
+    test('a starving pet still earns bits, so it can never get stuck', () => {
+        const broke = game({ bits: 0 });
+        const starving = { ...broke, buddies: [{ ...activeBuddy(broke), stage: 'child' as const, fullness: 0 }] };
+        const { state } = earn(starving, ROSTER.foodPrices.meat);
         assert.strictEqual(activeBuddy(state).xp, 0);
-        assert.strictEqual(state.food.meat, 1);
-        assert.strictEqual(activeBuddy(feedGame(state, 'meat').state).fullness, 25);
+        const fed = feedGame(state, 'meat').state;
+        assert.strictEqual(activeBuddy(fed).fullness, FOODS.meat.fullness);
     });
 
-    test('feeding uses up food and refuses without it', () => {
+    test('buying food spends its price and never touches XP', () => {
         const base = game();
-        const hungry = { ...base, buddies: [{ ...activeBuddy(base), stage: 'child' as const, fullness: 10 }] };
-        const fed = feedGame(hungry, 'meat').state;
-        assert.strictEqual(fed.food.meat, ROSTER.startingFood.meat - 1);
-        assert.deepStrictEqual(feedGame(hungry, 'sirloin').events, [{ kind: 'noFood', food: 'sirloin' }]);
+        const hungry = { ...base, buddies: [{ ...activeBuddy(base), stage: 'child' as const, fullness: 10, energy: 10, xp: 500 }] };
+        const fed = feedGame(hungry, 'sirloin').state;
+        assert.strictEqual(fed.bits, ROSTER.startingBits - ROSTER.foodPrices.sirloin);
+        assert.strictEqual(activeBuddy(fed).xp, 500);
     });
 
-    test('a refused food is not consumed', () => {
+    test('food you cannot afford is not bought', () => {
+        const poor = game({ bits: ROSTER.foodPrices.meat - 1 });
+        const hungry = { ...poor, buddies: [{ ...activeBuddy(poor), stage: 'child' as const, fullness: 10 }] };
+        assert.deepStrictEqual(feedGame(hungry, 'meat'), { state: hungry, events: [{ kind: 'cannotAfford', food: 'meat' }] });
+    });
+
+    test('a refused food is not charged', () => {
         const full = game({ buddies: [{ ...activeBuddy(game()), stage: 'child' }] });
-        assert.strictEqual(feedGame(full, 'meat').state.food.meat, ROSTER.startingFood.meat);
+        assert.strictEqual(feedGame(full, 'meat').state.bits, ROSTER.startingBits);
+    });
+
+    test('version 2 saves refund their food as bits', () => {
+        const v3 = game();
+        const { bits: _bits, eggsGranted: _eggs, ...rest } = v3;
+        const v2 = { ...rest, version: 2, food: { meat: 2, vitamin: 1, sirloin: 1 }, granted: { meat: 4, vitamin: 1, sirloin: 0, egg: 1 } };
+        const migrated = parseGame(JSON.parse(JSON.stringify(v2)))!;
+        assert.strictEqual(migrated.version, 3);
+        assert.strictEqual(migrated.bits, 2 * 50 + 1 * 50 + 1 * 150);
+        assert.strictEqual(migrated.eggsGranted, 1);
+        assert.ok(!('food' in migrated) && !('granted' in migrated));
     });
 
     test('eggs arrive every milestone from lines not already owned', () => {
-        const { state, events } = earn(game(), ROSTER.milestones.egg);
+        const { state, events } = earn(game(), ROSTER.effortPerEgg);
         assert.strictEqual(state.buddies.length, 2);
         assert.ok(events.some(event => event.kind === 'eggEarned'));
         assert.notStrictEqual(state.buddies[1].lineId, state.buddies[0].lineId);
@@ -80,7 +95,7 @@ suite('game', () => {
     });
 
     test('a full roster queues eggs until a buddy is released', () => {
-        const { state } = earn(game(), ROSTER.milestones.egg * ROSTER.maxBuddies);
+        const { state } = earn(game(), ROSTER.effortPerEgg * ROSTER.maxBuddies);
         assert.strictEqual(state.buddies.length, ROSTER.maxBuddies);
         assert.strictEqual(state.pendingEggs, 1);
 
@@ -95,7 +110,7 @@ suite('game', () => {
     });
 
     test('idle buddies are frozen; switching resumes from now', () => {
-        const { state } = earn(game(), ROSTER.milestones.egg);
+        const { state } = earn(game(), ROSTER.effortPerEgg);
         const first = state.buddies[0];
         const second = state.buddies[1];
         const switched = switchBuddy(state, second.id, T0 + MINUTE).state;
@@ -108,7 +123,7 @@ suite('game', () => {
     });
 
     test('XP only goes to the active buddy', () => {
-        const { state } = earn(game(), ROSTER.milestones.egg);
+        const { state } = earn(game(), ROSTER.effortPerEgg);
         const switched = switchBuddy(state, state.buddies[1].id, T0).state;
         const before = switched.buddies[0].xp;
         const after = recordGameActivity(switched, 'commit', T0 + 1).state;
@@ -117,11 +132,11 @@ suite('game', () => {
     });
 
     test('parseGame round-trips and rejects junk', () => {
-        const state = earn(game(), ROSTER.milestones.egg).state;
+        const state = earn(game(), ROSTER.effortPerEgg).state;
         assert.deepStrictEqual(parseGame(JSON.parse(JSON.stringify(state))), state);
         assert.strictEqual(parseGame({ ...state, activeId: 'nobody' }), undefined);
         assert.strictEqual(parseGame({ ...state, version: 1 }), undefined);
-        assert.strictEqual(parseGame({ ...state, food: { meat: 'lots' } }), undefined);
+        assert.strictEqual(parseGame({ ...state, bits: 'lots' }), undefined);
         assert.strictEqual(parseGame(createEgg(T0)), undefined);
     });
 

@@ -6,7 +6,7 @@ import { PetController } from './PetController';
 import { trackActivity } from './activity';
 import { connectClaude } from './claude/bridge';
 import { registerClaudeInstall } from './claude/install';
-import { GameEvent, GameState } from './model/game';
+import { GameEvent, GameState, ROSTER } from './model/game';
 import { FOODS, FoodKind, PetState, isReadyToChoose, species } from './model/pet';
 import { BRANCHES, STAGE_LABELS, displayName, findLine } from './model/species';
 import { GameStore } from './store';
@@ -61,10 +61,10 @@ async function pickFood(controller: PetController): Promise<void> {
 	const game = controller.game;
 	const items = (Object.keys(FOODS) as FoodKind[]).map(kind => ({
 		label: FOODS[kind].name,
-		description: `× ${game.food[kind]}`,
+		description: `${ROSTER.foodPrices[kind]} bits${game.bits < ROSTER.foodPrices[kind] ? ' (not enough bits)' : ''}`,
 		food: kind,
 	}));
-	const choice = await vscode.window.showQuickPick(items, { placeHolder: 'Feed your Digimon' });
+	const choice = await vscode.window.showQuickPick(items, { placeHolder: `Buy food for your Digimon (you have ${game.bits} bits)` });
 	if (choice) {
 		controller.feed(choice.food);
 	}

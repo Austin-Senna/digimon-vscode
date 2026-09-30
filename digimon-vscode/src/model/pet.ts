@@ -17,7 +17,8 @@ export const RULES = {
     maxEnergy: 100,
     /** Below this fullness the pet reads as hungry. */
     hungryBelow: 25,
-    fullnessDecayPerMinute: 0.5,
+    /** A full stomach lasts 100 minutes; one meat buys 25. */
+    fullnessDecayPerMinute: 1,
     energyCostPerXp: 0.05,
     energyRegenPerMinuteAsleep: 2,
     /** No activity for this long and the pet falls asleep. */
