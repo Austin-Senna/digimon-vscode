@@ -11,6 +11,7 @@ const SYNC_INTERVAL_MS = 2_000;
 /** Applies player actions and time to the shared game and broadcasts changes. */
 export class PetController implements vscode.Disposable {
     private readonly _timers: ReturnType<typeof setInterval>[];
+    private _warnedAboutNewerSave = false;
     private readonly _onDidChange = new vscode.EventEmitter<GameEvent[]>();
     readonly onDidChange = this._onDidChange.event;
 
@@ -68,11 +69,28 @@ export class PetController implements vscode.Disposable {
         this._onDidChange.dispose();
     }
 
+    /** Another window runs a newer version; ask this one to reload instead of letting it touch the save. */
+    private _warnIfNewerSave(): void {
+        if (!this._store.newerSaveFound || this._warnedAboutNewerSave) {
+            return;
+        }
+        this._warnedAboutNewerSave = true;
+        void vscode.window.showWarningMessage(
+            'Your Digimon was saved by a newer version of Digimon Buddy. Reload this window to keep playing; nothing here will be saved until then.',
+            'Reload Window',
+        ).then(choice => {
+            if (choice === 'Reload Window') {
+                void vscode.commands.executeCommand('workbench.action.reloadWindow');
+            }
+        });
+    }
+
     private _apply(change: (now: number) => GameUpdate,
         force = false,
     ): void {
         const now = Date.now();
         const before = this._store.load(now);
+        this._warnIfNewerSave();
         const update = change(now);
         if (!force && update.state === before && update.events.length === 0) {
             return;

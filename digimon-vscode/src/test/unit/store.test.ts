@@ -48,6 +48,18 @@ suite('GameStore', () => {
         assert.ok(fs.existsSync(file));
     });
 
+    test('a save from a newer version is never renamed or overwritten', () => {
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        const future = JSON.stringify({ version: 99, somethingNew: true });
+        fs.writeFileSync(file, future);
+        const store = new GameStore(file, () => undefined);
+        const game = store.load(T0);
+        assert.strictEqual(store.newerSaveFound, true);
+        store.save(recordGameActivity(game, 'commit', T0 + 1).state);
+        assert.strictEqual(fs.readFileSync(file, 'utf8'), future);
+        assert.deepStrictEqual(fs.readdirSync(path.dirname(file)), ['game.json']);
+    });
+
     test('sets aside an unreadable file instead of destroying it', () => {
         fs.mkdirSync(path.dirname(file), { recursive: true });
         fs.writeFileSync(file, '{ not json');
