@@ -1,5 +1,9 @@
 # Change Log
 
+## [0.1.2] - 2026-09-29
+
+- Fix: a VS Code window still running an older version could mistake a newer save for a corrupt one and start a fresh egg. Newer saves are now left untouched, and the outdated window asks you to reload.
+
 ## [0.1.1] - 2026-09-29
 
 - New hatching-egg icon.
