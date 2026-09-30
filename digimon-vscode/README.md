@@ -17,13 +17,33 @@ Digitama → Baby I → Baby II → Child → Adult → Perfect → Ultimate.
 
 Your Digimon needs care:
 
-- **Fullness** drops over time. Feed it with the Feed button under its screen. At zero it starves, earns no XP, cannot evolve, and you take a care mistake (plus another every hour it stays starved).
+- **Fullness** drops over time. Feed it from the food tray under its screen. At zero it starves, earns no XP, cannot evolve, and you take a care mistake (plus another every hour it stays starved).
 - **Energy** drains as it earns XP. At zero it is exhausted and earns half XP.
 - **Sleep** happens after 5 minutes without activity. Energy recovers while it sleeps.
 
 Care mistakes decide what your Child becomes: 0-2 takes the good line (Agumon → Greymon → MetalGreymon → WarGreymon), 3-5 takes the dark line (Tyrannomon → SkullGreymon → BlackWarGreymon), and more than that ends in Numemon.
 
 Time only passes while VS Code is open, so a weekend away will not starve it.
+
+## Food
+
+All food is earned. Every coding action adds to a lifetime effort counter, and milestones on it repeat forever:
+
+| Food | Earned every | Effect |
+| --- | --- | --- |
+| Meat | 250 XP | +25 fullness |
+| Vitamin | 1,000 XP | +40 energy |
+| Sirloin | 2,500 XP | Refills fullness and energy |
+
+You start with 3 meat. Effort counts even while your Digimon is starving and earning no XP itself, so you can always code your way back to food. Food it would not benefit from (meat when full, anything for an egg) is refused and not used up.
+
+## Buddies
+
+Every 3,000 XP of effort earns a new egg, preferring lines you do not have yet. Up to 6 buddies fit in your roster; click one to make it active. Only the active buddy gets hungry, sleeps, and earns XP; the others stay frozen exactly as you left them. When the roster is full, new eggs wait until you release a buddy (**Digimon: Release Buddy**, which asks first).
+
+## Your save
+
+Your buddies, food, and milestones are saved in one file, `game.json`, in VS Code's global storage for this extension (**Digimon: Open Save Folder** shows it). Every VS Code window reads and writes that same file, so progress made in one window is never overwritten by another.
 
 There are 13 evolution lines, listed in [docs/evolution-lines.md](docs/evolution-lines.md) and defined in `src/model/species.ts`. Adding one is a data change; `npm run test:unit` checks that every sprite it references exists.
 
@@ -49,8 +69,9 @@ While a session runs, the screen shows "Claude is working", or a blinking "Claud
 
 ## Commands
 
-- `Digimon: Feed`
-- `Digimon: New Egg` (asks before discarding the current Digimon)
+- `Digimon: Feed`, `Digimon: Switch Buddy`, `Digimon: Release Buddy`
+- `Digimon: Open Save Folder`
+- `Digimon: Start Over` (asks before discarding everything)
 - `Digimon: Connect Claude Code` / `Digimon: Disconnect Claude Code`
 
 ## Settings

@@ -256,28 +256,129 @@ body {
     background: var(--energy);
 }
 
-.feed {
-    padding: 6px 12px;
-    border: 1px solid var(--vscode-button-border, transparent);
-    border-radius: 4px;
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
+.readout h2 {
+    display: flex;
+    gap: 6px;
+    margin: 0 0 6px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+    font-weight: 400;
+}
+
+.food-tray {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+
+.food {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 4px 6px;
+    border: 1px solid var(--vscode-widget-border, var(--empty));
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
+    color: inherit;
     font: inherit;
+    font-size: 11px;
     cursor: pointer;
 }
 
-.feed:hover {
-    background: var(--vscode-button-hoverBackground);
+.food:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 }
 
-.feed:focus-visible {
+.food:focus-visible,
+.buddy:focus-visible {
     outline: 1px solid var(--vscode-focusBorder);
-    outline-offset: 2px;
+    outline-offset: 1px;
 }
 
-.feed:disabled {
-    opacity: 0.5;
+.food:disabled {
+    opacity: 0.4;
     cursor: default;
+}
+
+.food svg {
+    width: 24px;
+    height: 24px;
+}
+
+.food .count {
+    position: absolute;
+    top: 3px;
+    right: 5px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+.reward {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+}
+
+.reward-bar {
+    height: 4px;
+}
+
+.reward-bar span {
+    background: var(--energy);
+}
+
+.reward-text {
+    font-variant-numeric: tabular-nums;
+}
+
+.roster {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+}
+
+.buddy {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    padding: 0;
+    border: 1px solid var(--vscode-widget-border, var(--empty));
+    border-radius: 6px;
+    background: var(--lcd);
+    cursor: pointer;
+}
+
+.buddy.active {
+    border-color: var(--lcd-ink);
+    box-shadow: 0 0 0 1px var(--lcd-ink);
+}
+
+.buddy.empty {
+    border-style: dashed;
+    background: transparent;
+    cursor: default;
+}
+
+.buddy .thumb {
+    width: 32px;
+    height: 32px;
+    image-rendering: pixelated;
+    background-repeat: no-repeat;
+    background-size: 300% 400%;
+}
+
+.buddy .thumb.egg {
+    background-size: 300% 100%;
+}
+
+.waiting {
+    color: var(--energy);
 }
 
 .history {
@@ -288,7 +389,6 @@ body {
 }
 
 .device.egg .meters,
-.device.egg .feed,
 .device.egg .history,
 .device:not(.egg) .hint {
     display: none;

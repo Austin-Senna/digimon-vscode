@@ -24,6 +24,21 @@
         hungry: 'idle',
         happy: 'idle',
     };
+    // 8x8 pixel art, one character per pixel; '.' is transparent.
+    const FOOD_ART = {
+        meat: {
+            palette: { r: '#c8553d', d: '#8f3a2a', w: '#f2efe6' },
+            rows: ['...rrrr.', '..rrrrrr', '.rrrrrrd', '.rrrrrdd', '..rrrdd.', '.ww.dd..', 'www.....', '.w......'],
+        },
+        vitamin: {
+            palette: { k: '#9aa0a6', g: '#6fb7e0', y: '#e8b931' },
+            rows: ['...kk...', '...kk...', '..gggg..', '.gggggg.', '.gyyyyg.', '.gyyyyg.', '.gggggg.', '..gggg..'],
+        },
+        sirloin: {
+            palette: { r: '#b5473a', d: '#7d2f27', w: '#f0d5c8' },
+            rows: ['........', '.rrrrr..', 'rrwrrrr.', 'rrrrwrrd', 'rwrrrrrd', '.rrrrrd.', '..dddd..', '........'],
+        },
+    };
     const HEARTS = 4;
     const ENERGY_SEGMENTS = 8;
     const FRAME_MS = 500;
@@ -55,7 +70,19 @@
         }
     });
 
-    $('feed').addEventListener('click', () => vscode.postMessage({ type: 'feed' }));
+    $('food-tray').addEventListener('click', event => {
+        const button = event.target.closest('.food');
+        if (button && !button.disabled) {
+            vscode.postMessage({ type: 'feed', food: button.dataset.food });
+        }
+    });
+
+    $('roster').addEventListener('click', event => {
+        const button = event.target.closest('.buddy');
+        if (button && button.dataset.id && !button.classList.contains('active')) {
+            vscode.postMessage({ type: 'switch', id: button.dataset.id });
+        }
+    });
 
     pet.addEventListener('click', () => {
         if (current && !current.isEgg && current.mood !== 'sleeping') {
@@ -73,6 +100,87 @@
         const lit = Math.ceil(fraction * container.children.length);
         Array.from(container.children).forEach((cell, i) => cell.classList.toggle('on', i < lit));
         container.setAttribute('aria-label', `${Math.round(fraction * 100)}%`);
+    }
+
+    function pixelArt({ palette, rows }) {
+        const svgNs = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNs, 'svg');
+        svg.setAttribute('viewBox', `0 0 ${rows[0].length} ${rows.length}`);
+        svg.setAttribute('shape-rendering', 'crispEdges');
+        svg.setAttribute('aria-hidden', 'true');
+        rows.forEach((row, y) => [...row].forEach((pixel, x) => {
+            if (pixel !== '.') {
+                const rect = document.createElementNS(svgNs, 'rect');
+                rect.setAttribute('x', String(x));
+                rect.setAttribute('y', String(y));
+                rect.setAttribute('width', '1');
+                rect.setAttribute('height', '1');
+                rect.setAttribute('fill', palette[pixel]);
+                svg.appendChild(rect);
+            }
+        }));
+        return svg;
+    }
+
+    function renderFood(state) {
+        const tray = $('food-tray');
+        if (tray.children.length !== state.food.length) {
+            tray.replaceChildren(...state.food.map(item => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'food';
+                button.dataset.food = item.kind;
+                const count = document.createElement('span');
+                count.className = 'count';
+                const name = document.createElement('span');
+                name.textContent = item.name;
+                button.append(count, pixelArt(FOOD_ART[item.kind]), name);
+                return button;
+            }));
+        }
+        state.food.forEach((item, i) => {
+            const button = tray.children[i];
+            button.querySelector('.count').textContent = `×${item.count}`;
+            button.disabled = state.isEgg || item.count === 0;
+            const reason = state.isEgg ? 'Eggs do not eat' : item.count === 0 ? `Earn one every ${item.every} XP` : 'Click to feed';
+            button.title = `${item.name}: ${item.effect}. ${reason}.`;
+            button.setAttribute('aria-label', `Feed ${item.name}, ${item.count} left. ${item.effect}.`);
+        });
+        showProgress('next-food', state.nextFood);
+    }
+
+    function renderRoster(state) {
+        const slots = state.roster.map(buddy => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = `buddy${buddy.active ? ' active' : ''}`;
+            button.dataset.id = buddy.id;
+            button.title = buddy.active ? `${buddy.name} (${buddy.stage}), active` : `Switch to ${buddy.name} (${buddy.stage})`;
+            button.setAttribute('aria-pressed', String(buddy.active));
+            const thumb = document.createElement('div');
+            thumb.className = `thumb${buddy.isEgg ? ' egg' : ''}`;
+            thumb.style.backgroundImage = `url('${buddy.spriteUri}')`;
+            thumb.style.backgroundPosition = '0 0';
+            button.appendChild(thumb);
+            return button;
+        });
+        for (let i = state.roster.length; i < state.maxBuddies; i++) {
+            const empty = document.createElement('div');
+            empty.className = 'buddy empty';
+            empty.setAttribute('aria-hidden', 'true');
+            slots.push(empty);
+        }
+        $('roster').replaceChildren(...slots);
+        $('roster-count').textContent = state.pendingEggs > 0
+            ? `${state.roster.length}/${state.maxBuddies}, ${state.pendingEggs} egg waiting`
+            : `${state.roster.length}/${state.maxBuddies}`;
+        $('roster-count').classList.toggle('waiting', state.pendingEggs > 0);
+        showProgress('next-egg', state.nextEgg);
+    }
+
+    function showProgress(prefix, { current, target }) {
+        $(`${prefix}-fill`).style.width = `${(current / target) * 100}%`;
+        $(`${prefix}-text`).textContent = `${current} / ${target}`;
     }
 
     function render(state) {
@@ -98,6 +206,8 @@
         fillMeter($('energy'), state.energy);
         $('mistakes').textContent = state.careMistakes === 1 ? '1 care mistake' : `${state.careMistakes} care mistakes`;
         $('age').textContent = `Age ${state.age}`;
+        renderFood(state);
+        renderRoster(state);
     }
 
     function play(animation) {

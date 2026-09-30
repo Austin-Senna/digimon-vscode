@@ -46,7 +46,25 @@
                 </div>
             </dl>
 
-            <button type="button" class="feed" id="feed">Feed</button>
+            <section class="pantry" aria-labelledby="food-heading">
+                <h2 id="food-heading">Food</h2>
+                <div class="food-tray" id="food-tray"></div>
+                <div class="reward">
+                    <span>Next meat</span>
+                    <div class="bar reward-bar"><span id="next-food-fill"></span></div>
+                    <span class="reward-text" id="next-food-text"></span>
+                </div>
+            </section>
+
+            <section class="party" aria-labelledby="roster-heading">
+                <h2 id="roster-heading">Buddies <span id="roster-count"></span></h2>
+                <div class="roster" id="roster"></div>
+                <div class="reward">
+                    <span>Next egg</span>
+                    <div class="bar reward-bar"><span id="next-egg-fill"></span></div>
+                    <span class="reward-text" id="next-egg-text"></span>
+                </div>
+            </section>
 
             <footer class="history">
                 <span id="mistakes"></span>

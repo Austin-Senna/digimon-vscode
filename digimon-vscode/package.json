@@ -48,10 +48,25 @@
         "icon": "$(heart)"
       },
       {
-        "command": "digimon.newEgg",
-        "title": "New Egg",
+        "command": "digimon.switchBuddy",
+        "title": "Switch Buddy",
         "category": "Digimon",
-        "icon": "$(debug-restart)"
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "digimon.releaseBuddy",
+        "title": "Release Buddy",
+        "category": "Digimon"
+      },
+      {
+        "command": "digimon.startOver",
+        "title": "Start Over",
+        "category": "Digimon"
+      },
+      {
+        "command": "digimon.openSaveFolder",
+        "title": "Open Save Folder",
+        "category": "Digimon"
       },
       {
         "command": "digimon.connectClaude",
@@ -107,15 +122,32 @@
         {
           "command": "digimon.feed",
           "when": "view == digimonPlayground",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
-          "command": "digimon.newEgg",
-          "when": "view == digimonPlayground"
+          "command": "digimon.switchBuddy",
+          "when": "view == digimonPlayground",
+          "group": "navigation@2"
         },
         {
           "command": "digimon.connectClaude",
-          "when": "view == digimonPlayground"
+          "when": "view == digimonPlayground",
+          "group": "1_claude"
+        },
+        {
+          "command": "digimon.releaseBuddy",
+          "when": "view == digimonPlayground",
+          "group": "2_roster"
+        },
+        {
+          "command": "digimon.openSaveFolder",
+          "when": "view == digimonPlayground",
+          "group": "3_data"
+        },
+        {
+          "command": "digimon.startOver",
+          "when": "view == digimonPlayground",
+          "group": "3_data"
         }
       ]
     }

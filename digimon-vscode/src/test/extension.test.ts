@@ -15,12 +15,16 @@ suite('Extension Test Suite', () => {
 	test('activates and registers its commands', async () => {
 		await activateExtension();
 		const commands = await vscode.commands.getCommands(true);
-		assert.ok(commands.includes('digimon.feed'));
-		assert.ok(commands.includes('digimon.newEgg'));
+		for (const command of ['digimon.feed', 'digimon.switchBuddy', 'digimon.releaseBuddy', 'digimon.startOver', 'digimon.openSaveFolder']) {
+			assert.ok(commands.includes(command), command);
+		}
 	});
 
-	test('feeding a fresh egg is harmless', async () => {
-		await vscode.commands.executeCommand('digimon.feed');
+	test('starts a saved game with an egg and starting food', async () => {
+		const api = await activateExtension();
+		const game = api.game();
+		assert.strictEqual(game.buddies.length >= 1, true);
+		assert.ok(game.food.meat > 0 || game.effort > 0);
 	});
 
 	test('Claude prompts in this workspace earn XP; other workspaces do not', async function () {

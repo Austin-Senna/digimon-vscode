@@ -1,45 +1,112 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { DigimonPlaygroundProvider } from './DigimonPlaygroundProvider';
 import { PetController } from './PetController';
 import { trackActivity } from './activity';
 import { connectClaude } from './claude/bridge';
 import { registerClaudeInstall } from './claude/install';
-import { PetEvent, PetState } from './model/pet';
+import { GameEvent, GameState } from './model/game';
+import { FOODS, FoodKind, PetState, species } from './model/pet';
 import { STAGE_LABELS, displayName } from './model/species';
+import { GameStore } from './store';
+
+/** Pre-roster versions kept a single pet here; it is migrated into the save file once. */
+const LEGACY_STATE_KEY = 'digimon.pet';
 
 /** Exposed for integration tests. */
 export interface DigimonApi {
 	readonly state: () => PetState;
+	readonly game: () => GameState;
 }
 
 export function activate(context: vscode.ExtensionContext): DigimonApi {
-	const controller = new PetController(context.globalState);
+	const store = new GameStore(
+		path.join(context.globalStorageUri.fsPath, 'game.json'),
+		() => context.globalState.get(LEGACY_STATE_KEY),
+	);
+	const controller = new PetController(store);
 	const playgroundProvider = new DigimonPlaygroundProvider(context.extensionUri, controller);
 
 	context.subscriptions.push(
 		controller,
 		playgroundProvider,
 		vscode.window.registerWebviewViewProvider('digimonPlayground', playgroundProvider),
-		vscode.commands.registerCommand('digimon.feed', () => controller.feed()),
-		vscode.commands.registerCommand('digimon.newEgg', async () => {
+		vscode.commands.registerCommand('digimon.feed', () => pickFood(controller)),
+		vscode.commands.registerCommand('digimon.switchBuddy', () => pickBuddy(controller)),
+		vscode.commands.registerCommand('digimon.releaseBuddy', () => release(controller)),
+		vscode.commands.registerCommand('digimon.startOver', async () => {
 			const choice = await vscode.window.showWarningMessage(
-				'Start over with a new Digitama? Your current Digimon will be gone for good.',
-				{ modal: true },
-				'New Egg',
+				'Start over with a single new Digitama?',
+				{ modal: true, detail: 'Every buddy, food item, and milestone is lost for good.' },
+				'Start Over',
 			);
-			if (choice === 'New Egg') {
-				controller.newEgg();
+			if (choice === 'Start Over') {
+				controller.startOver();
 			}
 		}),
+		vscode.commands.registerCommand('digimon.openSaveFolder', () =>
+			vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(store.file))),
 		controller.onDidChange(events => events.forEach(notify)),
 		trackActivity(controller),
 		connectClaude(controller, playgroundProvider),
 		registerClaudeInstall(context),
 	);
-	return { state: () => controller.state };
+	return { state: () => controller.state, game: () => controller.game };
 }
 
-function notify(event: PetEvent): void {
+async function pickFood(controller: PetController): Promise<void> {
+	const game = controller.game;
+	const items = (Object.keys(FOODS) as FoodKind[]).map(kind => ({
+		label: FOODS[kind].name,
+		description: `× ${game.food[kind]}`,
+		food: kind,
+	}));
+	const choice = await vscode.window.showQuickPick(items, { placeHolder: 'Feed your Digimon' });
+	if (choice) {
+		controller.feed(choice.food);
+	}
+}
+
+function buddyItems(game: GameState,
+	includeActive: boolean,
+) {
+	return game.buddies
+		.filter(buddy => includeActive || buddy.id !== game.activeId)
+		.map(buddy => ({
+			label: displayName(species(buddy)),
+			description: `${STAGE_LABELS[buddy.stage]}${buddy.id === game.activeId ? ' (active)' : ''}`,
+			id: buddy.id,
+		}));
+}
+
+async function pickBuddy(controller: PetController): Promise<void> {
+	const choice = await vscode.window.showQuickPick(buddyItems(controller.game, true), { placeHolder: 'Switch buddy' });
+	if (choice) {
+		controller.switchTo(choice.id);
+	}
+}
+
+async function release(controller: PetController): Promise<void> {
+	const items = buddyItems(controller.game, false);
+	if (items.length === 0) {
+		void vscode.window.showInformationMessage('Your only buddy is the active one, which cannot be released.');
+		return;
+	}
+	const choice = await vscode.window.showQuickPick(items, { placeHolder: 'Release a buddy (the active one cannot be released)' });
+	if (!choice) {
+		return;
+	}
+	const confirm = await vscode.window.showWarningMessage(
+		`Release ${choice.label}?`,
+		{ modal: true, detail: 'It is gone for good. A waiting egg, if any, takes its slot.' },
+		'Release',
+	);
+	if (confirm === 'Release') {
+		controller.release(choice.id);
+	}
+}
+
+function notify(event: GameEvent): void {
 	if (!vscode.workspace.getConfiguration('digimon').get<boolean>('notifications', true)) {
 		return;
 	}
@@ -51,6 +118,11 @@ function notify(event: PetEvent): void {
 			);
 			break;
 		}
+		case 'eggEarned':
+			void vscode.window.showInformationMessage(event.waiting
+				? 'You earned a new egg, but your roster is full. Release a buddy to make room.'
+				: 'You earned a new egg! Click it in your roster to raise it.');
+			break;
 		case 'starving':
 			void vscode.window.showWarningMessage('Your Digimon is starving.', 'Feed').then(choice => {
 				if (choice === 'Feed') {

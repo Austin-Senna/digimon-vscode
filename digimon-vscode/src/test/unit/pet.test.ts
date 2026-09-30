@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import {
-    PetState, RULES, createEgg, feed, isAsleep, mood, parseState, recordActivity, species, tick,
+    FOODS, PetState, RULES, activityEffort, createEgg, feed, isAsleep, mood, parseState, recordActivity, species, tick,
 } from '../../model/pet';
 import { LINES } from '../../model/species';
 
@@ -83,14 +83,28 @@ suite('pet model', () => {
 
     test('feeding resets the starvation clock', () => {
         const starving = hatched({ fullness: 0, starvingMs: RULES.starvingMistakeIntervalMs - MINUTE });
-        const fed = feed(starving).state;
-        assert.strictEqual(fed.fullness, RULES.foodValue);
+        const fed = feed(starving, 'meat').state;
+        assert.strictEqual(fed.fullness, FOODS.meat.fullness);
         assert.strictEqual(fed.starvingMs, 0);
     });
 
     test('feeding a full pet or an egg is refused', () => {
-        assert.deepStrictEqual(feed(hatched()).events, [{ kind: 'refused' }]);
-        assert.deepStrictEqual(feed(egg()).events, [{ kind: 'refused' }]);
+        assert.deepStrictEqual(feed(hatched(), 'meat').events, [{ kind: 'refused' }]);
+        assert.deepStrictEqual(feed(hatched({ fullness: 10 }), 'vitamin').events, [{ kind: 'refused' }]);
+        assert.deepStrictEqual(feed(egg({ fullness: 0 }), 'meat').events, [{ kind: 'refused' }]);
+    });
+
+    test('each food restores what it says', () => {
+        assert.strictEqual(feed(hatched({ energy: 10 }), 'vitamin').state.energy, 10 + FOODS.vitamin.energy);
+        const sirloin = feed(hatched({ fullness: 5, energy: 5 }), 'sirloin').state;
+        assert.deepStrictEqual([sirloin.fullness, sirloin.energy], [RULES.maxFullness, RULES.maxEnergy]);
+    });
+
+    test('effort ignores hunger but respects the active-second cap', () => {
+        const starving = hatched({ fullness: 0, lastEditXpAt: T0 });
+        assert.strictEqual(activityEffort(starving, 'commit', T0 + 1), RULES.xpPerActivity.commit);
+        assert.strictEqual(activityEffort(starving, 'edit', T0 + 1), 0);
+        assert.strictEqual(activityEffort(starving, 'edit', T0 + RULES.activeSecondCooldownMs), RULES.xpPerActivity.edit);
     });
 
     test('edits are throttled to one XP per cooldown', () => {

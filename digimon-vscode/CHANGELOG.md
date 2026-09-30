@@ -12,3 +12,6 @@
 - Evolution lines audited against Wikimon; fixed Agumon, Gabumon, Piyomon, Impmon, and Lalamon links; added Lopmon.
 - Merged the digimon-claude hook into `claude-hook/`; Connect/Disconnect Claude Code commands manage `~/.claude/settings.json` hooks.
 - Hook log is owner-only; hook runs as `python3 -I -S`.
+- Buddy roster (up to 6): earn an egg every 3,000 XP, switch buddies, release with confirmation. Idle buddies are frozen.
+- Earned food: meat, vitamins, and sirloin from repeating XP milestones, fed from a pixel-art food tray.
+- Save moved to a shared game.json so multiple VS Code windows no longer overwrite each other's progress; the old single pet is migrated.

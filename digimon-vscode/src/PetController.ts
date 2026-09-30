@@ -1,64 +1,80 @@
 import * as vscode from 'vscode';
-import { ActivityKind, PetEvent, PetState, Update, createEgg, feed, parseState, recordActivity, tick } from './model/pet';
+import { GameState, GameEvent, GameUpdate, activeBuddy, feedGame, recordGameActivity, releaseBuddy, switchBuddy, tickGame, createGame } from './model/game';
+import { ActivityKind, FoodKind, PetState } from './model/pet';
+import { GameStore } from './store';
 
-const STATE_KEY = 'digimon.pet';
 const TICK_INTERVAL_MS = 30_000;
+/** How often to look for changes other windows made, so this window's UI stays current. */
+const SYNC_INTERVAL_MS = 2_000;
 
-/** Owns the live pet: persists it, advances time, and broadcasts changes. */
+/** Applies player actions and time to the shared game and broadcasts changes. */
 export class PetController implements vscode.Disposable {
-    private _state: PetState;
-    private readonly _timer: ReturnType<typeof setInterval>;
-    private readonly _onDidChange = new vscode.EventEmitter<PetEvent[]>();
+    private readonly _timers: ReturnType<typeof setInterval>[];
+    private readonly _onDidChange = new vscode.EventEmitter<GameEvent[]>();
     readonly onDidChange = this._onDidChange.event;
 
-    constructor(private readonly _memento: vscode.Memento) {
-        const now = Date.now();
-        const saved = parseState(_memento.get(STATE_KEY));
-        // Time spent with VS Code closed does not count, so resume the clock from now.
-        this._state = saved ? { ...saved, lastTickAt: now } : createEgg(now);
-        if (!saved) {
-            void this._save();
-        }
-        this._timer = setInterval(() => this.tick(), TICK_INTERVAL_MS);
+    constructor(private readonly _store: GameStore) {
+        this._store.load(Date.now());
+        this._timers = [
+            setInterval(() => this.tick(), TICK_INTERVAL_MS),
+            setInterval(() => {
+                if (this._store.changedElsewhere()) {
+                    this._onDidChange.fire([]);
+                }
+            }, SYNC_INTERVAL_MS),
+        ];
     }
 
+    get game(): GameState {
+        return this._store.load(Date.now());
+    }
+
+    /** The active buddy. */
     get state(): PetState {
-        return this._state;
+        return activeBuddy(this.game);
     }
 
     tick(): void {
-        this._apply(tick(this._state, Date.now()));
+        this._apply(now => tickGame(this._store.load(now), now));
     }
 
     recordActivity(kind: ActivityKind): void {
-        this._apply(recordActivity(this._state, kind, Date.now()));
+        this._apply(now => recordGameActivity(this._store.load(now), kind, now));
     }
 
-    feed(): void {
-        this._apply(feed(this._state));
+    feed(food: FoodKind): void {
+        this._apply(now => feedGame(this._store.load(now), food));
     }
 
-    newEgg(): void {
-        this._apply({ state: createEgg(Date.now()), events: [] }, true);
+    switchTo(id: string): void {
+        this._apply(now => switchBuddy(this._store.load(now), id, now));
+    }
+
+    release(id: string): void {
+        this._apply(now => releaseBuddy(this._store.load(now), id, now));
+    }
+
+    startOver(): void {
+        this._apply(now => ({ state: createGame(now), events: [] }), true);
     }
 
     dispose(): void {
-        clearInterval(this._timer);
+        this._timers.forEach(clearInterval);
         this._onDidChange.dispose();
     }
 
-    private _apply(update: Update,
+    private _apply(change: (now: number) => GameUpdate,
         force = false,
     ): void {
-        if (!force && update.state === this._state && update.events.length === 0) {
+        const now = Date.now();
+        const before = this._store.load(now);
+        const update = change(now);
+        if (!force && update.state === before && update.events.length === 0) {
             return;
         }
-        this._state = update.state;
-        void this._save();
+        if (force || update.state !== before) {
+            this._store.save(update.state);
+        }
         this._onDidChange.fire(update.events);
-    }
-
-    private _save(): Thenable<void> {
-        return this._memento.update(STATE_KEY, this._state);
     }
 }

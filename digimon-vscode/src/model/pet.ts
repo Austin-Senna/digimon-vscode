@@ -15,7 +15,8 @@ export const RULES = {
     } as Record<Exclude<Stage, 'ultimate'>, number>,
     maxFullness: 100,
     maxEnergy: 100,
-    foodValue: 25,
+    /** Below this fullness the pet reads as hungry. */
+    hungryBelow: 25,
     fullnessDecayPerMinute: 0.5,
     energyCostPerXp: 0.05,
     energyRegenPerMinuteAsleep: 2,
@@ -76,15 +77,23 @@ export interface Update {
     readonly events: PetEvent[];
 }
 
+export type FoodKind = 'meat' | 'vitamin' | 'sirloin';
+
+export const FOODS: Record<FoodKind, { readonly name: string; readonly fullness: number; readonly energy: number }> = {
+    meat: { name: 'Meat', fullness: 25, energy: 0 },
+    vitamin: { name: 'Vitamin', fullness: 0, energy: 40 },
+    sirloin: { name: 'Sirloin', fullness: 100, energy: 100 },
+};
+
 export type Mood = 'sleeping' | 'starving' | 'exhausted' | 'hungry' | 'happy';
 
 export function createEgg(now: number,
     random: () => number = Math.random,
+    lineIds: readonly string[] = LINES.map(line => line.id),
 ): PetState {
-    const line = LINES[Math.floor(random() * LINES.length)];
     return {
         version: STATE_VERSION,
-        lineId: line.id,
+        lineId: lineIds[Math.floor(random() * lineIds.length)],
         stage: 'digitama',
         branch: null,
         xp: 0,
@@ -122,7 +131,7 @@ export function mood(state: PetState,
     if (state.energy <= 0) {
         return 'exhausted';
     }
-    if (state.fullness < RULES.foodValue) {
+    if (state.fullness < RULES.hungryBelow) {
         return 'hungry';
     }
     return 'happy';
@@ -203,14 +212,36 @@ export function recordActivity(state: PetState,
     return { state: evolution.state, events: [...events, ...evolution.events] };
 }
 
-export function feed(state: PetState): Update {
-    if (state.stage === 'digitama' || state.fullness >= RULES.maxFullness) {
+/** Eat one food. Refused (and not consumed) by eggs, or when the food would change nothing. */
+export function feed(state: PetState,
+    food: FoodKind,
+): Update {
+    const { fullness, energy } = FOODS[food];
+    const helps = (fullness > 0 && state.fullness < RULES.maxFullness) || (energy > 0 && state.energy < RULES.maxEnergy);
+    if (state.stage === 'digitama' || !helps) {
         return { state, events: [{ kind: 'refused' }] };
     }
     return {
-        state: { ...state, fullness: Math.min(RULES.maxFullness, state.fullness + RULES.foodValue), starvingMs: 0 },
+        state: {
+            ...state,
+            fullness: Math.min(RULES.maxFullness, state.fullness + fullness),
+            energy: Math.min(RULES.maxEnergy, state.energy + energy),
+            starvingMs: fullness > 0 ? 0 : state.starvingMs,
+        },
         events: [{ kind: 'ate' }],
     };
+}
+
+/**
+ * Base XP an activity is worth before hunger or exhaustion, or 0 when throttled.
+ * Drives food and egg milestones, so a starving pet can still earn its way back to food.
+ */
+export function activityEffort(state: PetState,
+    kind: ActivityKind,
+    now: number,
+): number {
+    const throttled = ACTIVE_SECOND_KINDS.has(kind) && now - state.lastEditXpAt < RULES.activeSecondCooldownMs;
+    return throttled ? 0 : RULES.xpPerActivity[kind];
 }
 
 /** Accept only a well-formed state for a line that still exists. */

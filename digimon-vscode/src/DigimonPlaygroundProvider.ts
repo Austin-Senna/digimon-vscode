@@ -4,7 +4,8 @@ import * as fs from 'fs';
 import { PetController } from './PetController';
 import { ClaudeAnimation, ClaudeListener } from './claude/bridge';
 import { ClaudeStatus } from './claude/events';
-import { Mood, PetEvent, RULES, mood, species, xpForNextStage } from './model/pet';
+import { GameEvent, ROSTER, activeBuddy, milestoneProgress } from './model/game';
+import { FOODS, FoodKind, Mood, PetState, RULES, mood, species, xpForNextStage } from './model/pet';
 import { STAGE_LABELS, displayName, spritePath } from './model/species';
 
 type Animation = ClaudeAnimation | 'eat' | 'evolve';
@@ -23,11 +24,13 @@ const CLAUDE_LABELS: Record<ClaudeStatus, string> = {
     waiting: 'Claude needs you',
 };
 
-const EVENT_ANIMATIONS: Partial<Record<PetEvent['kind'], Animation>> = {
+const EVENT_ANIMATIONS: Partial<Record<GameEvent['kind'], Animation>> = {
     ate: 'eat',
     refused: 'refuse',
+    noFood: 'refuse',
     woke: 'happy',
     evolved: 'evolve',
+    switched: 'happy',
 };
 
 export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, ClaudeListener, vscode.Disposable {
@@ -57,10 +60,13 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
         };
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
         webviewView.webview.onDidReceiveMessage(message => {
+            // Messages come from our own script, but validate anyway: nothing here should trust the webview.
             if (message?.type === 'ready') {
                 this._postState();
-            } else if (message?.type === 'feed') {
-                this._controller.feed();
+            } else if (message?.type === 'feed' && typeof message.food === 'string' && Object.hasOwn(FOODS, message.food)) {
+                this._controller.feed(message.food as FoodKind);
+            } else if (message?.type === 'switch' && typeof message.id === 'string') {
+                this._controller.switchTo(message.id);
             }
         });
         webviewView.onDidDispose(() => {
@@ -86,15 +92,15 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
         if (!view) {
             return;
         }
-        const state = this._controller.state;
-        const name = species(state);
-        const sprite = vscode.Uri.joinPath(this._extensionUri, ...spritePath(state.stage, name));
-        const currentMood = mood(state, Date.now());
+        const now = Date.now();
+        const game = this._controller.game;
+        const state = activeBuddy(game);
+        const currentMood = mood(state, now);
         void view.webview.postMessage({
             type: 'state',
-            name: displayName(name),
+            name: displayName(species(state)),
             stage: STAGE_LABELS[state.stage],
-            spriteUri: view.webview.asWebviewUri(sprite).toString(),
+            spriteUri: this._spriteUri(view.webview, state),
             isEgg: state.stage === 'digitama',
             mood: currentMood,
             moodLabel: MOOD_LABELS[currentMood],
@@ -106,7 +112,32 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             age: formatDuration(state.ageMs),
             claudeStatus: this._claudeStatus,
             claudeLabel: CLAUDE_LABELS[this._claudeStatus],
+            food: (Object.keys(FOODS) as FoodKind[]).map(kind => ({
+                kind,
+                name: FOODS[kind].name,
+                count: game.food[kind],
+                effect: foodEffect(kind),
+                every: ROSTER.milestones[kind],
+            })),
+            nextFood: milestoneProgress(game, 'meat'),
+            nextEgg: milestoneProgress(game, 'egg'),
+            roster: game.buddies.map(buddy => ({
+                id: buddy.id,
+                name: displayName(species(buddy)),
+                stage: STAGE_LABELS[buddy.stage],
+                spriteUri: this._spriteUri(view.webview, buddy),
+                isEgg: buddy.stage === 'digitama',
+                active: buddy.id === game.activeId,
+            })),
+            maxBuddies: ROSTER.maxBuddies,
+            pendingEggs: game.pendingEggs,
         });
+    }
+
+    private _spriteUri(webview: vscode.Webview,
+        pet: PetState,
+    ): string {
+        return webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, ...spritePath(pet.stage, species(pet)))).toString();
     }
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
@@ -127,6 +158,14 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             .replace('{{scriptUri}}', scriptUri.toString())
             .replace('{{nonce}}', nonce);
     }
+}
+
+function foodEffect(kind: FoodKind): string {
+    const { fullness, energy } = FOODS[kind];
+    if (fullness >= RULES.maxFullness && energy >= RULES.maxEnergy) {
+        return 'Refills fullness and energy';
+    }
+    return [fullness > 0 && `+${fullness} fullness`, energy > 0 && `+${energy} energy`].filter(Boolean).join(', ');
 }
 
 function formatDuration(ms: number): string {
