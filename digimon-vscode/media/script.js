@@ -40,7 +40,7 @@
         },
     };
     const HEARTS = 4;
-    const ENERGY_SEGMENTS = 8;
+    const SEGMENTS = { 'xp-meter': 24, energy: 8, 'food-meter': 20, 'egg-meter': 20 };
     const FRAME_MS = 500;
     const TRANSIENT_MS = 2000;
     const SIZE_PX = 64;
@@ -59,7 +59,9 @@
         svg.appendChild(use);
         return svg;
     });
-    buildMeter($('energy'), ENERGY_SEGMENTS, () => document.createElement('span'));
+    for (const [id, count] of Object.entries(SEGMENTS)) {
+        buildMeter($(id), count, () => document.createElement('span'));
+    }
 
     window.addEventListener('message', event => {
         const message = event.data;
@@ -129,6 +131,35 @@
         return svg;
     }
 
+    /** Write text where numbers render in the pixel face: parts are strings or { num }. */
+    function caption(element, parts) {
+        element.replaceChildren(...parts.map(part => {
+            if (typeof part === 'string') {
+                return document.createTextNode(part);
+            }
+            const span = document.createElement('span');
+            span.className = 'num';
+            span.textContent = part.num.toLocaleString();
+            return span;
+        }));
+    }
+
+    function renderProgress(state) {
+        const progress = state.xpNext === null ? 1 : Math.min(1, state.xp / state.xpNext);
+        fillMeter($('xp-meter'), progress);
+        $('xp-meter').setAttribute('aria-valuenow', String(Math.round(progress * 100)));
+        const remaining = state.xpNext === null ? 0 : Math.max(0, Math.ceil(state.xpNext - state.xp));
+        if (state.xpNext === null) {
+            caption($('xp-caption'), ['Final form, ', { num: state.xp }, ' XP']);
+        } else if (state.choice) {
+            caption($('xp-caption'), ['Ready to become an ', state.nextStage]);
+        } else if (state.isEgg) {
+            caption($('xp-caption'), [{ num: remaining }, ' XP to hatch']);
+        } else {
+            caption($('xp-caption'), [{ num: remaining }, ` XP to ${state.nextStage}`]);
+        }
+    }
+
     function renderChoice(state) {
         $('evolve').hidden = !state.choice;
         if (!state.choice) {
@@ -143,7 +174,6 @@
             const thumb = document.createElement('div');
             thumb.className = 'thumb';
             thumb.style.backgroundImage = `url('${option.spriteUri}')`;
-            thumb.style.backgroundPosition = '0 0';
             const name = document.createElement('strong');
             name.textContent = option.name;
             const next = document.createElement('small');
@@ -171,13 +201,14 @@
         }
         state.food.forEach((item, i) => {
             const button = tray.children[i];
-            button.querySelector('.count').textContent = `×${item.count}`;
+            caption(button.querySelector('.count'), ['×', { num: item.count }]);
             button.disabled = state.isEgg || item.count === 0;
             const reason = state.isEgg ? 'Eggs do not eat' : item.count === 0 ? `Earn one every ${item.every} XP` : 'Click to feed';
             button.title = `${item.name}: ${item.effect}. ${reason}.`;
             button.setAttribute('aria-label', `Feed ${item.name}, ${item.count} left. ${item.effect}.`);
         });
-        showProgress('next-food', state.nextFood);
+        fillMeter($('food-meter'), state.nextFood.current / state.nextFood.target);
+        caption($('food-caption'), ['Meat in ', { num: state.nextFood.target - state.nextFood.current }, ' XP']);
     }
 
     function renderRoster(state) {
@@ -191,7 +222,6 @@
             const thumb = document.createElement('div');
             thumb.className = `thumb${buddy.isEgg ? ' egg' : ''}`;
             thumb.style.backgroundImage = `url('${buddy.spriteUri}')`;
-            thumb.style.backgroundPosition = '0 0';
             button.appendChild(thumb);
             return button;
         });
@@ -202,16 +232,31 @@
             slots.push(empty);
         }
         $('roster').replaceChildren(...slots);
-        $('roster-count').textContent = state.pendingEggs > 0
-            ? `${state.roster.length}/${state.maxBuddies}, ${state.pendingEggs} egg waiting`
-            : `${state.roster.length}/${state.maxBuddies}`;
-        $('roster-count').classList.toggle('waiting', state.pendingEggs > 0);
-        showProgress('next-egg', state.nextEgg);
+        $('roster-count').textContent = `${state.roster.length}/${state.maxBuddies}`;
+        fillMeter($('egg-meter'), state.nextEgg.current / state.nextEgg.target);
+        const eggIn = state.nextEgg.target - state.nextEgg.current;
+        if (state.pendingEggs > 0) {
+            caption($('egg-caption'), [{ num: state.pendingEggs }, ' waiting, release a buddy']);
+        } else if (state.roster.length >= state.maxBuddies) {
+            caption($('egg-caption'), ['Party full, next egg in ', { num: eggIn }, ' XP']);
+        } else {
+            caption($('egg-caption'), ['Egg in ', { num: eggIn }, ' XP']);
+        }
+        $('egg-caption').classList.toggle('waiting', state.pendingEggs > 0);
+        showThumbFrame(true);
     }
 
-    function showProgress(prefix, { current, target }) {
-        $(`${prefix}-fill`).style.width = `${(current / target) * 100}%`;
-        $(`${prefix}-text`).textContent = `${current} / ${target}`;
+    /** Roster and path previews idle between their first two frames, in step with the main pet. */
+    let thumbFrame = -1;
+    function showThumbFrame(force) {
+        const frame = Math.floor(performance.now() / FRAME_MS) % 2;
+        if (frame === thumbFrame && !force) {
+            return;
+        }
+        thumbFrame = frame;
+        document.querySelectorAll('.thumb').forEach(thumb => {
+            thumb.style.backgroundPosition = `${frame * 50}% 0%`;
+        });
     }
 
     function render(state) {
@@ -228,10 +273,9 @@
         $('name').textContent = state.name;
         $('stage').textContent = state.stage;
 
-        const progress = state.xpNext === null ? 1 : Math.min(1, state.xp / state.xpNext);
-        $('xp-fill').style.width = `${progress * 100}%`;
-        $('xp-bar').setAttribute('aria-valuenow', String(Math.round(progress * 100)));
-        $('xp-text').textContent = state.xpNext === null ? 'Final form' : `${state.xp} / ${state.xpNext} XP`;
+        device.dataset.shell = state.appearance.shell;
+        device.dataset.screen = state.appearance.screen;
+        renderProgress(state);
 
         fillMeter($('fullness'), state.fullness);
         fillMeter($('energy'), state.energy);
@@ -297,6 +341,7 @@
             zzz.style.left = `${Math.round(x) + SIZE_PX - 8}px`;
             zzz.style.bottom = `${SIZE_PX + 14}px`;
         }
+        showThumbFrame(false);
         requestAnimationFrame(step);
     }
 

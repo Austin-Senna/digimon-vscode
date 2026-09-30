@@ -82,6 +82,12 @@
         "command": "digimon.disconnectClaude",
         "title": "Disconnect Claude Code",
         "category": "Digimon"
+      },
+      {
+        "command": "digimon.customize",
+        "title": "Customize Digivice",
+        "category": "Digimon",
+        "icon": "$(paintcan)"
       }
     ],
     "configuration": {
@@ -101,6 +107,54 @@
           "type": "string",
           "default": "~/.claude/digimon/events.jsonl",
           "description": "Event log written by the digimon-claude hooks."
+        },
+        "digimon.appearance.shell": {
+          "type": "string",
+          "default": "silver",
+          "enum": [
+            "silver",
+            "orange",
+            "blue",
+            "pink",
+            "purple",
+            "green",
+            "yellow",
+            "black",
+            "none"
+          ],
+          "enumItemLabels": [
+            "Silver",
+            "Orange",
+            "Blue",
+            "Pink",
+            "Purple",
+            "Green",
+            "Yellow",
+            "Black",
+            "No shell"
+          ],
+          "description": "Color of the Digivice around the screen."
+        },
+        "digimon.appearance.screen": {
+          "type": "string",
+          "default": "lcd",
+          "enum": [
+            "lcd",
+            "classic",
+            "night",
+            "sky",
+            "sunset",
+            "meadow"
+          ],
+          "enumItemLabels": [
+            "Dark LCD",
+            "Classic LCD",
+            "Night sky",
+            "Day sky",
+            "Sunset",
+            "Meadow"
+          ],
+          "description": "Background behind your Digimon."
         }
       }
     },
@@ -133,6 +187,11 @@
           "command": "digimon.switchBuddy",
           "when": "view == digimonPlayground",
           "group": "navigation@2"
+        },
+        {
+          "command": "digimon.customize",
+          "when": "view == digimonPlayground",
+          "group": "navigation@3"
         },
         {
           "command": "digimon.connectClaude",

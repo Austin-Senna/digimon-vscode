@@ -2,11 +2,12 @@ import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import { PetController } from './PetController';
+import { Appearance, resolveAppearance } from './appearance';
 import { ClaudeAnimation, ClaudeListener } from './claude/bridge';
 import { ClaudeStatus } from './claude/events';
 import { GameEvent, ROSTER, activeBuddy, milestoneProgress } from './model/game';
 import { FOODS, FoodKind, Mood, PetState, RULES, isReadyToChoose, mood, species, xpForNextStage } from './model/pet';
-import { BRANCHES, Branch, STAGE_LABELS, displayName, findLine, spritePath } from './model/species';
+import { BRANCHES, Branch, STAGES, STAGE_LABELS, displayName, findLine, spritePath } from './model/species';
 
 type Animation = ClaudeAnimation | 'eat' | 'evolve';
 
@@ -36,20 +37,29 @@ const EVENT_ANIMATIONS: Partial<Record<GameEvent['kind'], Animation>> = {
 export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, ClaudeListener, vscode.Disposable {
     private _view: vscode.WebviewView | undefined;
     private _claudeStatus: ClaudeStatus = 'idle';
-    private readonly _subscription: vscode.Disposable;
+    /** Shown instead of the saved appearance while the Customize picker is open. */
+    private _preview: Appearance | undefined;
+    private readonly _subscriptions: vscode.Disposable[];
 
     constructor(private readonly _extensionUri: vscode.Uri,
         private readonly _controller: PetController,
     ) {
-        this._subscription = _controller.onDidChange(events => {
-            this._postState();
-            for (const event of events) {
-                const animation = EVENT_ANIMATIONS[event.kind];
-                if (animation) {
-                    this.play(animation);
+        this._subscriptions = [
+            _controller.onDidChange(events => {
+                this._postState();
+                for (const event of events) {
+                    const animation = EVENT_ANIMATIONS[event.kind];
+                    if (animation) {
+                        this.play(animation);
+                    }
                 }
-            }
-        });
+            }),
+            vscode.workspace.onDidChangeConfiguration(event => {
+                if (event.affectsConfiguration('digimon.appearance')) {
+                    this._postState();
+                }
+            }),
+        ];
     }
 
     resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -85,8 +95,13 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
         void this._view?.webview.postMessage({ type: 'play', animation });
     }
 
+    previewAppearance(appearance: Appearance | undefined): void {
+        this._preview = appearance;
+        this._postState();
+    }
+
     dispose(): void {
-        this._subscription.dispose();
+        this._subscriptions.forEach(subscription => subscription.dispose());
     }
 
     private _postState(): void {
@@ -112,6 +127,8 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             energy: state.energy / RULES.maxEnergy,
             xp: Math.floor(state.xp),
             xpNext: xpForNextStage(state),
+            nextStage: state.stage === 'ultimate' ? null : STAGE_LABELS[STAGES[STAGES.indexOf(state.stage) + 1]],
+            appearance: this._preview ?? savedAppearance(),
             age: formatDuration(state.ageMs),
             claudeStatus: this._claudeStatus,
             claudeLabel: CLAUDE_LABELS[this._claudeStatus],
@@ -167,6 +184,7 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             `default-src 'none'`,
             `img-src ${webview.cspSource}`,
             `style-src ${webview.cspSource}`,
+            `font-src ${webview.cspSource}`,
             `script-src 'nonce-${nonce}'`,
         ].join('; ');
 
@@ -177,6 +195,11 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             .replace('{{scriptUri}}', scriptUri.toString())
             .replace('{{nonce}}', nonce);
     }
+}
+
+export function savedAppearance(): Appearance {
+    const config = vscode.workspace.getConfiguration('digimon.appearance');
+    return resolveAppearance(config.get('shell'), config.get('screen'));
 }
 
 function foodEffect(kind: FoodKind): string {

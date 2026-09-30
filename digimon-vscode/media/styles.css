@@ -1,14 +1,88 @@
+@font-face {
+    font-family: 'Silkscreen';
+    src: url('fonts/Silkscreen-Regular.ttf') format('truetype');
+    font-display: block;
+}
+
 :root {
-    --lcd: #121a14;
-    --lcd-edge: #0a0f0b;
-    --lcd-grid: rgba(184, 216, 160, 0.045);
-    --lcd-ink: #b8d8a0;
     --heart: #e5484d;
     --energy: #e8b931;
     --xp: #5fb3d9;
+    --meat: #d9774b;
     --empty: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
     --pixel: 4px;
 }
+
+/* Screen backgrounds. --lcd also tints roster and path thumbnails; --lcd-ink is text and floor on the screen. */
+.device[data-screen="lcd"] {
+    --lcd: #121a14;
+    --lcd-ink: #b8d8a0;
+    --lcd-grid: rgba(184, 216, 160, 0.045);
+    --scene: none;
+    --scene-size: 100% 100%;
+}
+
+.device[data-screen="classic"] {
+    --lcd: #a3b18a;
+    --lcd-ink: #27301f;
+    --lcd-grid: rgba(39, 48, 31, 0.08);
+    --scene: linear-gradient(#b1be98, #98a67f);
+    --scene-size: 100% 100%;
+}
+
+.device[data-screen="night"] {
+    --lcd: #0d1230;
+    --lcd-ink: #c9d4ff;
+    --lcd-grid: rgba(201, 212, 255, 0.035);
+    /* Three star tiles with co-prime sizes so the pattern does not read as a grid. */
+    --scene:
+        radial-gradient(circle at 23% 37%, rgba(255, 255, 255, 0.9) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 71% 64%, rgba(255, 255, 255, 0.5) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 46% 12%, rgba(255, 255, 255, 0.7) 0 1px, transparent 1.5px),
+        linear-gradient(#0a0e2a, #1c2150);
+    --scene-size: 97px 83px, 131px 109px, 173px 151px, 100% 100%;
+}
+
+.device[data-screen="sky"] {
+    --lcd: #8fcff2;
+    --lcd-ink: #1d3b52;
+    --lcd-grid: rgba(29, 59, 82, 0.05);
+    --scene:
+        linear-gradient(to top, #5f9f43 0 18px, #7fbf5a 18px 22px, transparent 22px),
+        linear-gradient(#72bfee, #d6f1ff);
+    --scene-size: 100% 100%, 100% 100%;
+}
+
+.device[data-screen="sunset"] {
+    --lcd: #6b3fa0;
+    --lcd-ink: #ffe3c4;
+    --lcd-grid: rgba(255, 227, 196, 0.05);
+    --scene:
+        linear-gradient(to top, #2b1a3d 0 18px, transparent 18px),
+        linear-gradient(#4f3486, #d9607a 62%, #ffb36b);
+    --scene-size: 100% 100%, 100% 100%;
+}
+
+.device[data-screen="meadow"] {
+    --lcd: #1f3a2a;
+    --lcd-ink: #d7f2c4;
+    --lcd-grid: rgba(215, 242, 196, 0.04);
+    --scene:
+        linear-gradient(to top, #2f6b3a 0 22px, #3f8a4a 22px 26px, transparent 26px),
+        linear-gradient(#1c2d44, #3a5a6e);
+    --scene-size: 100% 100%, 100% 100%;
+}
+
+/* Digivice shell colors. */
+.device[data-shell="silver"] { --shell: #c9ced6; }
+.device[data-shell="orange"] { --shell: #f08a24; }
+.device[data-shell="blue"] { --shell: #3a78d8; }
+.device[data-shell="pink"] { --shell: #e889b5; }
+.device[data-shell="purple"] { --shell: #8a5cc7; }
+.device[data-shell="green"] { --shell: #4caf6a; }
+.device[data-shell="yellow"] { --shell: #f2c230; }
+.device[data-shell="black"] { --shell: #2a2b2f; }
+.device[data-shell="none"] { --shell: transparent; }
 
 * {
     box-sizing: border-box;
@@ -41,42 +115,62 @@ body {
     height: 100%;
 }
 
-/* The one loud element: the Digivice screen. */
+/* The one loud element: the Digivice. */
+.shell {
+    display: flex;
+    flex: 1;
+    min-height: 160px;
+    padding: 10px;
+    border-radius: 22px;
+    background: linear-gradient(160deg,
+        color-mix(in srgb, var(--shell), white 28%),
+        var(--shell) 45%,
+        color-mix(in srgb, var(--shell), black 22%));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.35),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.25),
+        0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.device[data-shell="none"] .shell {
+    padding: 0;
+    background: none;
+    box-shadow: none;
+}
+
 .screen {
     position: relative;
     flex: 1;
-    min-height: 140px;
     overflow: hidden;
-    border-radius: 10px;
+    border-radius: 12px;
     background-color: var(--lcd);
     background-image:
         linear-gradient(var(--lcd-grid) 1px, transparent 1px),
-        linear-gradient(90deg, var(--lcd-grid) 1px, transparent 1px);
-    background-size: var(--pixel) var(--pixel);
+        linear-gradient(90deg, var(--lcd-grid) 1px, transparent 1px),
+        var(--scene);
+    background-size: var(--pixel) var(--pixel), var(--pixel) var(--pixel), var(--scene-size);
     box-shadow:
-        inset 0 0 0 1px var(--lcd-edge),
-        inset 0 2px 14px rgba(0, 0, 0, 0.55);
+        inset 0 0 0 2px rgba(0, 0, 0, 0.35),
+        inset 0 2px 14px rgba(0, 0, 0, 0.45);
 }
 
-.screen-status {
-    position: absolute;
-    top: 10px;
-    left: 12px;
-    margin: 0;
-    color: var(--lcd-ink);
-    font-size: 11px;
-    letter-spacing: 0.02em;
-    opacity: 0.85;
-}
-
+.screen-status,
 .claude-status {
     position: absolute;
     top: 10px;
-    right: 12px;
     margin: 0;
     color: var(--lcd-ink);
     font-size: 11px;
-    opacity: 0.6;
+}
+
+.screen-status {
+    left: 12px;
+    opacity: 0.9;
+}
+
+.claude-status {
+    right: 12px;
+    opacity: 0.65;
 }
 
 .screen[data-claude="waiting"] .claude-status {
@@ -113,7 +207,8 @@ body {
     background-size: 300% 400%;
 }
 
-.pet.egg {
+.pet.egg,
+.thumb.egg {
     background-size: 300% 100%;
 }
 
@@ -153,11 +248,19 @@ body {
     50% { transform: translateY(-4px); opacity: 0.6; }
 }
 
-/* Readout: quiet, theme-native. */
+/* Readout: quiet and theme-native. Numbers use the pixel face; words use the editor's UI font. */
+.num,
+.caption .num {
+    font-family: 'Silkscreen', var(--vscode-editor-font-family, monospace);
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+}
+
 .readout {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
 }
 
 .identity {
@@ -182,38 +285,65 @@ body {
     font-size: 12px;
 }
 
-.xp {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.bar {
-    flex: 1;
-    height: 6px;
-    border-radius: 3px;
-    background: var(--empty);
-    overflow: hidden;
-}
-
-.bar span {
-    display: block;
-    height: 100%;
-    width: 0;
-    background: var(--xp);
-    transition: width 0.4s ease-out;
-}
-
-.xp-text {
-    flex-shrink: 0;
+.caption {
+    margin: 0;
     color: var(--vscode-descriptionForeground);
     font-size: 11px;
-    font-variant-numeric: tabular-nums;
+}
+
+.progress {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .hint {
     margin: 0;
     color: var(--vscode-descriptionForeground);
+}
+
+/* Segmented pixel meters, shared by XP, energy, and the reward milestones. */
+.meter {
+    display: flex;
+    gap: 2px;
+    margin: 0;
+}
+
+.meter span {
+    flex: 1;
+    height: 8px;
+    border-radius: 1px;
+    background: var(--empty);
+}
+
+.meter span.on {
+    background: var(--meter);
+}
+
+.xp-meter { --meter: var(--xp); }
+.energy-meter { --meter: var(--energy); }
+.energy-meter span { height: 12px; }
+.reward-meter { margin-top: 8px; }
+.reward-meter span { height: 4px; }
+#food-meter { --meter: var(--meat); }
+#egg-meter { --meter: var(--xp); }
+
+.readout h2 {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin: 0;
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+    font-weight: 400;
+}
+
+.section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
 }
 
 .meters {
@@ -229,7 +359,7 @@ body {
     font-size: 11px;
 }
 
-.meters dd {
+.hearts {
     display: flex;
     gap: 4px;
     margin: 0;
@@ -245,28 +375,9 @@ body {
     fill: var(--heart);
 }
 
-.segments span {
-    width: 8px;
-    height: 12px;
-    border-radius: 1px;
-    background: var(--empty);
-}
-
-.segments span.on {
-    background: var(--energy);
-}
-
-.readout h2 {
-    display: flex;
-    gap: 6px;
-    margin: 0 0 6px;
-    color: var(--vscode-descriptionForeground);
-    font-size: 11px;
-    font-weight: 400;
-}
-
 .evolve h2 {
-    color: var(--lcd-ink);
+    margin-bottom: 6px;
+    color: var(--vscode-foreground);
 }
 
 .paths {
@@ -294,27 +405,25 @@ body {
     box-shadow: 0 0 0 1px var(--lcd-ink);
 }
 
-.path:focus-visible {
-    outline: 1px solid var(--vscode-focusBorder);
-    outline-offset: 2px;
-}
-
-.path .thumb {
-    width: 48px;
-    height: 48px;
-    image-rendering: pixelated;
-    background-repeat: no-repeat;
-    background-size: 300% 400%;
-}
-
 .path strong {
     font-size: 12px;
 }
 
 .path small {
-    opacity: 0.7;
+    opacity: 0.75;
     font-size: 10px;
     line-height: 1.3;
+}
+
+.thumb {
+    image-rendering: pixelated;
+    background-repeat: no-repeat;
+    background-size: 300% 400%;
+}
+
+.path .thumb {
+    width: 48px;
+    height: 48px;
 }
 
 .food-tray {
@@ -343,12 +452,6 @@ body {
     background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 }
 
-.food:focus-visible,
-.buddy:focus-visible {
-    outline: 1px solid var(--vscode-focusBorder);
-    outline-offset: 1px;
-}
-
 .food:disabled {
     opacity: 0.4;
     cursor: default;
@@ -361,32 +464,9 @@ body {
 
 .food .count {
     position: absolute;
-    top: 3px;
-    right: 5px;
+    top: 4px;
+    right: 6px;
     color: var(--vscode-descriptionForeground);
-    font-size: 10px;
-    font-variant-numeric: tabular-nums;
-}
-
-.reward {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 8px;
-    color: var(--vscode-descriptionForeground);
-    font-size: 11px;
-}
-
-.reward-bar {
-    height: 4px;
-}
-
-.reward-bar span {
-    background: var(--energy);
-}
-
-.reward-text {
-    font-variant-numeric: tabular-nums;
 }
 
 .roster {
@@ -420,13 +500,13 @@ body {
 .buddy .thumb {
     width: 32px;
     height: 32px;
-    image-rendering: pixelated;
-    background-repeat: no-repeat;
-    background-size: 300% 400%;
 }
 
-.buddy .thumb.egg {
-    background-size: 300% 100%;
+.path:focus-visible,
+.food:focus-visible,
+.buddy:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
 }
 
 .waiting {
@@ -451,8 +531,5 @@ body {
     .screen[data-claude="waiting"] .claude-status,
     .pet.evolving {
         animation: none;
-    }
-    .bar span {
-        transition: none;
     }
 }

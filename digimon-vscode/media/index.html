@@ -13,14 +13,16 @@
         </symbol>
     </svg>
 
-    <main class="device egg" id="device">
-        <section class="screen" id="screen">
-            <p class="screen-status" id="status" aria-live="polite"></p>
-            <p class="claude-status" id="claude" aria-live="polite"></p>
-            <span class="zzz" id="zzz" aria-hidden="true">z<span>z</span><span>z</span></span>
-            <div class="pet" id="pet" role="img"></div>
-            <div class="floor" aria-hidden="true"></div>
-        </section>
+    <main class="device egg" id="device" data-shell="silver" data-screen="lcd">
+        <div class="shell">
+            <section class="screen" id="screen">
+                <p class="screen-status" id="status" aria-live="polite"></p>
+                <p class="claude-status" id="claude" aria-live="polite"></p>
+                <span class="zzz" id="zzz" aria-hidden="true">z<span>z</span><span>z</span></span>
+                <div class="pet" id="pet" role="img"></div>
+                <div class="floor" aria-hidden="true"></div>
+            </section>
+        </div>
 
         <section class="readout">
             <header class="identity">
@@ -28,9 +30,9 @@
                 <span class="stage" id="stage"></span>
             </header>
 
-            <div class="xp">
-                <div class="bar" role="progressbar" aria-label="Experience" id="xp-bar"><span id="xp-fill"></span></div>
-                <span class="xp-text" id="xp-text"></span>
+            <div class="progress">
+                <div class="meter xp-meter" id="xp-meter" role="progressbar" aria-label="Experience" aria-valuemin="0" aria-valuemax="100"></div>
+                <p class="caption" id="xp-caption"></p>
             </div>
 
             <p class="hint">Write some code to hatch it.</p>
@@ -47,28 +49,26 @@
                 </div>
                 <div>
                     <dt>Energy</dt>
-                    <dd class="segments" id="energy"></dd>
+                    <dd class="meter energy-meter" id="energy"></dd>
                 </div>
             </dl>
 
             <section class="pantry" aria-labelledby="food-heading">
-                <h2 id="food-heading">Food</h2>
+                <header class="section-head">
+                    <h2 id="food-heading">Food</h2>
+                    <span class="caption" id="food-caption"></span>
+                </header>
                 <div class="food-tray" id="food-tray"></div>
-                <div class="reward">
-                    <span>Next meat</span>
-                    <div class="bar reward-bar"><span id="next-food-fill"></span></div>
-                    <span class="reward-text" id="next-food-text"></span>
-                </div>
+                <div class="meter reward-meter" id="food-meter" aria-hidden="true"></div>
             </section>
 
             <section class="party" aria-labelledby="roster-heading">
-                <h2 id="roster-heading">Buddies <span id="roster-count"></span></h2>
+                <header class="section-head">
+                    <h2 id="roster-heading">Party <span class="num" id="roster-count"></span></h2>
+                    <span class="caption" id="egg-caption"></span>
+                </header>
                 <div class="roster" id="roster"></div>
-                <div class="reward">
-                    <span>Next egg</span>
-                    <div class="bar reward-bar"><span id="next-egg-fill"></span></div>
-                    <span class="reward-text" id="next-egg-text"></span>
-                </div>
+                <div class="meter reward-meter" id="egg-meter" aria-hidden="true"></div>
             </section>
 
             <footer class="history">

@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { DigimonPlaygroundProvider } from './DigimonPlaygroundProvider';
+import { DigimonPlaygroundProvider, savedAppearance } from './DigimonPlaygroundProvider';
+import { Preset, SCREENS, SHELLS } from './appearance';
 import { PetController } from './PetController';
 import { trackActivity } from './activity';
 import { connectClaude } from './claude/bridge';
@@ -32,6 +33,7 @@ export function activate(context: vscode.ExtensionContext): DigimonApi {
 		playgroundProvider,
 		vscode.window.registerWebviewViewProvider('digimonPlayground', playgroundProvider),
 		vscode.commands.registerCommand('digimon.feed', () => pickFood(controller)),
+		vscode.commands.registerCommand('digimon.customize', () => customize(playgroundProvider)),
 		vscode.commands.registerCommand('digimon.chooseEvolution', () => pickEvolution(controller)),
 		vscode.commands.registerCommand('digimon.switchBuddy', () => pickBuddy(controller)),
 		vscode.commands.registerCommand('digimon.releaseBuddy', () => release(controller)),
@@ -66,6 +68,43 @@ async function pickFood(controller: PetController): Promise<void> {
 	if (choice) {
 		controller.feed(choice.food);
 	}
+}
+
+/** Pick a shell, then a screen, previewing each option live; nothing is saved until both are accepted. */
+async function customize(provider: DigimonPlaygroundProvider): Promise<void> {
+	const saved = savedAppearance();
+	const shell = await pickPreset(SHELLS, saved.shell, 'Digivice color', id => provider.previewAppearance({ ...saved, shell: id }));
+	const screen = shell && await pickPreset(SCREENS, saved.screen, 'Screen background',
+		id => provider.previewAppearance({ shell, screen: id }));
+	provider.previewAppearance(undefined);
+	if (shell && screen) {
+		const config = vscode.workspace.getConfiguration('digimon.appearance');
+		await config.update('shell', shell, vscode.ConfigurationTarget.Global);
+		await config.update('screen', screen, vscode.ConfigurationTarget.Global);
+	}
+}
+
+function pickPreset(presets: readonly Preset[],
+	current: string,
+	title: string,
+	preview: (id: string) => void,
+): Promise<string | undefined> {
+	return new Promise(resolve => {
+		const pick = vscode.window.createQuickPick<vscode.QuickPickItem & { id: string }>();
+		pick.title = title;
+		pick.items = presets.map(preset => ({ label: preset.label, description: preset.id === current ? 'current' : undefined, id: preset.id }));
+		pick.activeItems = pick.items.filter(item => item.id === current);
+		pick.onDidChangeActive(([item]) => item && preview(item.id));
+		pick.onDidAccept(() => {
+			resolve(pick.selectedItems[0]?.id);
+			pick.hide();
+		});
+		pick.onDidHide(() => {
+			resolve(undefined);
+			pick.dispose();
+		});
+		pick.show();
+	});
 }
 
 async function pickEvolution(controller: PetController): Promise<void> {

@@ -41,6 +41,13 @@ You start with 3 meat. Effort counts even while your Digimon is starving and ear
 
 Every 3,000 XP of effort earns a new egg, preferring lines you do not have yet. Up to 6 buddies fit in your roster; click one to make it active. Only the active buddy gets hungry, sleeps, and earns XP; the others stay frozen exactly as you left them. When the roster is full, new eggs wait until you release a buddy (**Digimon: Release Buddy**, which asks first).
 
+## Customize your Digivice
+
+Run **Digimon: Customize Digivice** (the paint can in the view's title bar) to pick a shell color and a screen background; each option previews live as you move through the list. The choices are regular settings, `digimon.appearance.shell` and `digimon.appearance.screen`, so they sync with the rest of your VS Code settings.
+
+- Shells: Silver, Orange, Blue, Pink, Purple, Green, Yellow, Black, or no shell.
+- Screens: Dark LCD, Classic LCD, Night sky, Day sky, Sunset, Meadow.
+
 ## Your save
 
 Your buddies, food, and milestones are saved in one file, `game.json`, in VS Code's global storage for this extension (**Digimon: Open Save Folder** shows it). Every VS Code window reads and writes that same file, so progress made in one window is never overwritten by another.
@@ -76,6 +83,7 @@ While a session runs, the screen shows "Claude is working", or a blinking "Claud
 
 ## Settings
 
+- `digimon.appearance.shell` / `digimon.appearance.screen`: Digivice color and screen background.
 - `digimon.notifications`: show notifications for evolution, starvation, and exhaustion. Default `true`.
 - `digimon.claude.enabled`: react to Claude Code sessions in this workspace. Default `true`.
 - `digimon.claude.eventsPath`: event log written by the digimon-claude hooks. Default `~/.claude/digimon/events.jsonl`.
@@ -99,4 +107,4 @@ Game rules live in `src/model/pet.ts` (`RULES`) as pure functions with no `vscod
 
 This is an unofficial fan project. It is not affiliated with, endorsed by, or sponsored by Bandai or Toei Animation. Digimon and all related names are trademarks of Bandai.
 
-Sprites come from Tortoiseshel's Digimon sprite collection and remain the property of their respective owners; they are not covered by this project's MIT license, which applies to the source code only. Rights holders who want anything removed can [open an issue](https://github.com/Austin-Senna/digimon-vscode/issues) and it will be taken down.
+Numbers use the [Silkscreen](https://github.com/googlefonts/silkscreen) pixel font, under the SIL Open Font License (`media/fonts/OFL.txt`). Sprites come from Tortoiseshel's Digimon sprite collection and remain the property of their respective owners; they are not covered by this project's MIT license, which applies to the source code only. Rights holders who want anything removed can [open an issue](https://github.com/Austin-Senna/digimon-vscode/issues) and it will be taken down.
