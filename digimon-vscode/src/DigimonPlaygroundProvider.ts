@@ -5,8 +5,8 @@ import { PetController } from './PetController';
 import { Appearance, resolveAppearance } from './appearance';
 import { ClaudeAnimation, ClaudeListener } from './claude/bridge';
 import { ClaudeStatus } from './claude/events';
-import { GameEvent, GameState, ROSTER, activeBuddy, eggProgress, isPartyFull } from './model/game';
-import { FOODS, FoodKind, Mood, PetState, RULES, isReadyToChoose, levelOf, mood, nextEvolutionLevel, species, xpForLevel } from './model/pet';
+import { GameEvent, GameState, ROSTER, activeBuddy, eggProgress, isFrenzy, isPartyFull } from './model/game';
+import { FOODS, FoodKind, Mood, PetState, RULES, isReadyToChoose, levelOf, mood, nextEvolutionLevel, species, unlockedForms, xpForLevel } from './model/pet';
 import { BRANCHES, Branch, STAGES, STAGE_LABELS, Stage, displayName, findLine, spritePath } from './model/species';
 
 type Animation = ClaudeAnimation | 'happy' | 'eat' | 'levelUp';
@@ -32,6 +32,11 @@ const EVENT_ANIMATIONS: Partial<Record<GameEvent['kind'], Animation>> = {
     ate: 'eat',
     refused: 'refuse',
     cannotAfford: 'refuse',
+    cannotAffordPotion: 'refuse',
+    noPotions: 'refuse',
+    drankPotion: 'happy',
+    potionBought: 'happy',
+    eggCracked: 'happy',
     woke: 'happy',
     leveledUp: 'levelUp',
     switched: 'happy',
@@ -93,6 +98,16 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
                 this._controller.chooseEgg(message.lineId);
             } else if (message?.type === 'switch' && typeof message.id === 'string') {
                 this._controller.switchTo(message.id);
+            } else if (message?.type === 'buyPotion') {
+                this._controller.buyPotion();
+            } else if (message?.type === 'drinkPotion') {
+                this._controller.drinkPotion();
+            } else if (message?.type === 'crackEgg') {
+                void vscode.commands.executeCommand('digimon.crackEgg');
+            } else if (message?.type === 'changeForm') {
+                void vscode.commands.executeCommand('digimon.changeForm');
+            } else if (message?.type === 'reorder' && Array.isArray(message.ids) && message.ids.every((id: unknown) => typeof id === 'string')) {
+                this._controller.reorder(message.ids as string[]);
             }
         });
         webviewView.onDidDispose(() => {
@@ -173,7 +188,13 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             age: formatDuration(state.ageMs),
             claudeStatus: this._claudeStatus,
             claudeLabel: claudeLabel(this._claudeStatus, this._claudeWaiting),
+            canChangeForm: unlockedForms(state).length > 1,
             bits: game.bits,
+            potions: game.potions,
+            potionPrice: ROSTER.potionPrice,
+            potionXp: ROSTER.potionXp,
+            frenzyMsLeft: isFrenzy(game, now) ? game.frenzyUntil - now : 0,
+            eggPaused: isFrenzy(game, now),
             food: (Object.keys(FOODS) as FoodKind[]).map(kind => ({
                 kind,
                 name: FOODS[kind].name,

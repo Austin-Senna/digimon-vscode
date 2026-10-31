@@ -40,6 +40,17 @@
             rows: ['........', '.rrrrr..', 'rrwrrrr.', 'rrrrwrrd', 'rwrrrrrd', '.rrrrrd.', '..dddd..', '........'],
         },
     };
+    const POTION_ART = {
+        palette: { k: '#9aa0a6', g: '#d8e6f0', p: '#a970e0', l: '#d2b0f5' },
+        rows: ['...kk...', '...gg...', '..gppg..', '.gpplpg.', '.gppppg.', '.gppppg.', '..gppg..', '...gg...'],
+    };
+    const FLAME_ART = {
+        palette: { r: '#e5484d', o: '#f08a3c', y: '#e8b931' },
+        rows: ['..r...', '..rr..', '.rorr.', '.roor.', 'roooyr', 'royyor', '.ryyr.'],
+    };
+    // Item drags carry this type so the screen only accepts items, and roster slots only accept buddies.
+    const ITEM_TYPE = 'application/x-digimon-item';
+    const BUDDY_TYPE = 'application/x-digimon-buddy';
     // Reactions float up from the pet as small pixel icons.
     const HEART_ART = { palette: { r: '#e5484d' }, rows: ['.rr.rr.', 'rrrrrrr', 'rrrrrrr', '.rrrrr.', '..rrr..', '...r...'] };
     const SWEAT_ART = { palette: { b: '#7fb2e5', w: '#e6f3ff' }, rows: ['..b..', '..b..', '.bbb.', 'bbwbb', 'bbbbb', '.bbb.'] };
@@ -79,10 +90,54 @@
         }
     });
 
-    $('food-tray').addEventListener('click', event => {
-        const button = event.target.closest('.food');
+    $('items').addEventListener('click', event => {
+        const buy = event.target.closest('.buy');
+        if (buy) {
+            if (!buy.disabled) {
+                vscode.postMessage({ type: 'buyPotion' });
+            }
+            return;
+        }
+        const button = event.target.closest('.item');
         if (button && !button.disabled) {
-            vscode.postMessage({ type: 'feed', food: button.dataset.food });
+            useItem(JSON.parse(button.dataset.item));
+        }
+    });
+
+    $('items').addEventListener('dragstart', event => {
+        const button = event.target.closest('.item');
+        if (!button || button.disabled) {
+            event.preventDefault();
+            return;
+        }
+        event.dataTransfer.setData(ITEM_TYPE, button.dataset.item);
+        event.dataTransfer.effectAllowed = 'move';
+    });
+
+    // Drop food or a potion on the screen to use it, exactly like clicking it.
+    screen.addEventListener('dragover', event => {
+        if (event.dataTransfer.types.includes(ITEM_TYPE)) {
+            event.preventDefault();
+            screen.classList.add('drop-target');
+        }
+    });
+    screen.addEventListener('dragleave', event => {
+        if (!screen.contains(event.relatedTarget)) {
+            screen.classList.remove('drop-target');
+        }
+    });
+    screen.addEventListener('drop', event => {
+        screen.classList.remove('drop-target');
+        const data = event.dataTransfer.getData(ITEM_TYPE);
+        if (data) {
+            event.preventDefault();
+            useItem(JSON.parse(data));
+        }
+    });
+
+    $('stage').addEventListener('click', () => {
+        if (current?.canChangeForm) {
+            vscode.postMessage({ type: 'changeForm' });
         }
     });
 
@@ -101,7 +156,12 @@
 
     $('egg-choices').addEventListener('click', event => {
         const button = event.target.closest('.path');
-        if (button && !button.disabled) {
+        if (!button || button.disabled) {
+            return;
+        }
+        if (button.dataset.action === 'crack') {
+            vscode.postMessage({ type: 'crackEgg' });
+        } else {
             vscode.postMessage({ type: 'chooseEgg', lineId: button.dataset.lineId });
         }
     });
@@ -111,6 +171,42 @@
         if (button && button.dataset.id && !button.classList.contains('active')) {
             vscode.postMessage({ type: 'switch', id: button.dataset.id });
         }
+    });
+
+    // Drag a buddy onto another slot to move it there.
+    $('roster').addEventListener('dragstart', event => {
+        const button = event.target.closest('.buddy');
+        if (!button?.dataset.id) {
+            event.preventDefault();
+            return;
+        }
+        event.dataTransfer.setData(BUDDY_TYPE, button.dataset.id);
+        event.dataTransfer.effectAllowed = 'move';
+    });
+    $('roster').addEventListener('dragover', event => {
+        const target = event.target.closest('.buddy');
+        if (target?.dataset.id && event.dataTransfer.types.includes(BUDDY_TYPE)) {
+            event.preventDefault();
+            $('roster').querySelectorAll('.drop-target').forEach(slot => slot.classList.toggle('drop-target', slot === target));
+            target.classList.add('drop-target');
+        }
+    });
+    $('roster').addEventListener('dragleave', event => {
+        if (!$('roster').contains(event.relatedTarget)) {
+            $('roster').querySelectorAll('.drop-target').forEach(slot => slot.classList.remove('drop-target'));
+        }
+    });
+    $('roster').addEventListener('drop', event => {
+        $('roster').querySelectorAll('.drop-target').forEach(slot => slot.classList.remove('drop-target'));
+        const target = event.target.closest('.buddy');
+        const dragged = event.dataTransfer.getData(BUDDY_TYPE);
+        if (!current || !dragged || !target?.dataset.id || target.dataset.id === dragged) {
+            return;
+        }
+        event.preventDefault();
+        const ids = current.roster.map(buddy => buddy.id).filter(id => id !== dragged);
+        ids.splice(current.roster.findIndex(buddy => buddy.id === target.dataset.id), 0, dragged);
+        vscode.postMessage({ type: 'reorder', ids });
     });
 
     pet.addEventListener('click', () => {
@@ -215,33 +311,94 @@
         }));
     }
 
-    function renderFood(state) {
-        const tray = $('food-tray');
-        if (tray.children.length !== state.food.length) {
-            tray.replaceChildren(...state.food.map(item => {
-                const button = document.createElement('button');
-                button.type = 'button';
-                button.className = 'food';
-                button.dataset.food = item.kind;
-                const name = document.createElement('span');
-                name.textContent = item.name;
-                const price = document.createElement('span');
-                price.className = 'price';
-                button.append(pixelArt(FOOD_ART[item.kind]), name, price);
-                return button;
-            }));
+    function useItem(item) {
+        if (item.potion) {
+            vscode.postMessage({ type: 'drinkPotion' });
+        } else {
+            vscode.postMessage({ type: 'feed', food: item.food });
         }
+    }
+
+    /** Foods are bought as they are eaten; potions are stocked first, then drunk. Rebuilt only when the set changes. */
+    function renderItems(state) {
+        const grid = $('items');
+        const tiles = state.food.length + 1;
+        if (grid.children.length !== tiles) {
+            const foods = state.food.map(item => itemTile(FOOD_ART[item.kind], item.name, { food: item.kind }));
+            const potion = itemTile(POTION_ART, 'XP Potion', { potion: true });
+            const buy = document.createElement('button');
+            buy.type = 'button';
+            buy.className = 'buy';
+            buy.textContent = '+';
+            const slot = document.createElement('div');
+            slot.className = 'item-slot';
+            slot.append(potion, buy);
+            grid.replaceChildren(...foods.map(tile => {
+                const wrap = document.createElement('div');
+                wrap.className = 'item-slot';
+                wrap.appendChild(tile);
+                return wrap;
+            }), slot);
+        }
+        const buttons = grid.querySelectorAll('.item');
         state.food.forEach((item, i) => {
-            const button = tray.children[i];
+            const button = buttons[i];
             const affordable = state.bits >= item.price;
-            caption(button.querySelector('.price'), [{ num: item.price }, ' bits']);
-            button.disabled = state.isEgg || !affordable;
-            const reason = state.isEgg ? 'Eggs do not eat' : affordable ? 'Click to buy and feed' : `Needs ${(item.price - state.bits).toLocaleString()} more bits`;
-            button.title = `${item.name}: ${item.effect}. ${reason}.`;
+            caption(button.querySelector('.badge'), [{ num: item.price }]);
+            setUsable(button, !state.isEgg && affordable);
+            const reason = state.isEgg ? 'Eggs do not eat' : affordable ? 'Click or drag onto your Digimon to buy and feed' : `Needs ${(item.price - state.bits).toLocaleString()} more bits`;
+            button.title = `${item.name}: ${item.effect}. ${item.price} bits. ${reason}.`;
             button.setAttribute('aria-label', `Buy ${item.name} for ${item.price} bits. ${item.effect}. ${reason}.`);
         });
+        const potion = buttons[state.food.length];
+        caption(potion.querySelector('.badge'), ['×', { num: state.potions }]);
+        setUsable(potion, state.potions > 0);
+        const effect = `+${state.potionXp.toLocaleString()} XP`;
+        potion.title = state.potions > 0 ? `XP Potion: ${effect}. Click or drag onto your Digimon to drink.` : `XP Potion: ${effect}. Buy one with +, or crack a spare egg.`;
+        potion.setAttribute('aria-label', `Drink an XP potion, ${effect}. ${state.potions} owned.`);
+        const buy = grid.querySelector('.buy');
+        buy.disabled = state.bits < state.potionPrice;
+        buy.title = buy.disabled
+            ? `Needs ${(state.potionPrice - state.bits).toLocaleString()} more bits for an XP potion`
+            : `Buy an XP potion for ${state.potionPrice.toLocaleString()} bits`;
+        buy.setAttribute('aria-label', buy.title);
         caption($('bits'), [{ num: state.bits }, ' bits']);
     }
+
+    function itemTile(art, name, item) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'item';
+        button.dataset.item = JSON.stringify(item);
+        const label = document.createElement('span');
+        label.textContent = name;
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        button.append(pixelArt(art), label, badge);
+        return button;
+    }
+
+    function setUsable(button, usable) {
+        button.disabled = !usable;
+        button.draggable = usable;
+    }
+
+    /** The frenzy countdown runs locally between state updates, which only come when something changes. */
+    let frenzyEndsAt = 0;
+    function renderFrenzy() {
+        const left = frenzyEndsAt - Date.now();
+        const element = $('frenzy');
+        element.hidden = left <= 0;
+        if (left > 0) {
+            const minutes = Math.ceil(left / 60_000);
+            element.replaceChildren(pixelArt(FLAME_ART), document.createTextNode(' Coding frenzy: XP ×3, '));
+            const num = document.createElement('span');
+            num.className = 'num';
+            num.textContent = String(minutes);
+            element.append(num, document.createTextNode(minutes === 1 ? ' minute left' : ' minutes left'));
+        }
+    }
+    setInterval(renderFrenzy, 15_000);
 
     function renderRoster(state) {
         const slots = state.roster.map(buddy => {
@@ -251,6 +408,7 @@
             button.dataset.id = buddy.id;
             button.title = buddy.active ? `${buddy.name} (${buddy.stage}), active` : `Switch to ${buddy.name} (${buddy.stage})`;
             button.setAttribute('aria-pressed', String(buddy.active));
+            button.draggable = true;
             const thumb = document.createElement('div');
             thumb.className = `thumb${buddy.isEgg ? ' egg' : ''}`;
             thumb.style.backgroundImage = `url('${buddy.spriteUri}')`;
@@ -266,8 +424,9 @@
         $('roster').replaceChildren(...slots);
         $('roster-count').textContent = `${state.roster.length}/${state.maxBuddies}`;
         fillMeter($('egg-meter'), state.nextEgg.current / state.nextEgg.target);
-        const eggIn = state.nextEgg.target - state.nextEgg.current;
-        caption($('egg-caption'), ['Next egg in ', { num: eggIn }, ' XP']);
+        caption($('egg-caption'), state.eggPaused
+            ? ['Egg paused during frenzy']
+            : ['Next egg ', { num: Math.floor(state.nextEgg.current / state.nextEgg.target * 100) }, '%']);
         renderEggOffer(state);
         showThumbFrame(true);
     }
@@ -295,7 +454,17 @@
             name.textContent = `${option.name} egg`;
             button.append(thumb, name);
             return button;
-        }));
+        }), crackButton());
+    }
+
+    function crackButton() {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'path crack';
+        button.dataset.action = 'crack';
+        button.title = 'Turn this egg into 2 XP potions instead';
+        button.append(pixelArt(POTION_ART), document.createTextNode(' Crack into 2 potions'));
+        return button;
     }
 
     /** Roster and path previews idle between their first two frames, in step with the main pet. */
@@ -325,6 +494,8 @@
         screen.dataset.claude = state.claudeStatus;
         $('name').textContent = state.name;
         $('stage').textContent = state.stage;
+        $('stage').disabled = !state.canChangeForm;
+        $('stage').title = state.canChangeForm ? 'Change form' : '';
 
         device.dataset.screen = state.appearance.screen;
         renderProgress(state);
@@ -333,7 +504,9 @@
         fillMeter($('energy'), state.energy);
         $('age').textContent = `Age ${state.age}`;
         renderChoice(state);
-        renderFood(state);
+        renderItems(state);
+        frenzyEndsAt = state.frenzyMsLeft > 0 ? Date.now() + state.frenzyMsLeft : 0;
+        renderFrenzy();
         renderRoster(state);
     }
 
