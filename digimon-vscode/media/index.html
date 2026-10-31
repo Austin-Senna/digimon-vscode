@@ -42,7 +42,7 @@
         <section class="readout">
             <header class="identity">
                 <h1><span id="name"></span> <span class="level" id="level"></span></h1>
-                <span class="stage" id="stage"></span>
+                <button type="button" class="stage" id="stage"></button>
             </header>
 
             <div class="progress">
@@ -71,12 +71,12 @@
                 </div>
             </dl>
 
-            <section class="pantry" aria-labelledby="food-heading">
+            <section class="pantry" aria-labelledby="items-heading">
                 <header class="section-head">
-                    <h2 id="food-heading">Food</h2>
+                    <h2 id="items-heading">Items</h2>
                     <span class="caption" id="bits"></span>
                 </header>
-                <div class="food-tray" id="food-tray"></div>
+                <div class="items" id="items"></div>
             </section>
 
             <section class="party" aria-labelledby="roster-heading">
@@ -90,6 +90,7 @@
                 </div>
                 <div class="roster" id="roster"></div>
                 <div class="meter reward-meter" id="egg-meter" aria-hidden="true"></div>
+                <p class="caption frenzy" id="frenzy" hidden></p>
             </section>
 
             <footer class="history">

@@ -1,5 +1,19 @@
 # Change Log
 
+## [0.1.7] - 2026-10-30
+
+- Much faster growth, especially from your own coding: 1 XP per second of editing, 15 per save, 30 per commit, 9 per terminal command, and 15 per Claude prompt. Claude work earns 5 XP per 30 seconds per session.
+- Active minutes: reading, navigating, scrolling, and debugging in the focused window earn 10 XP a minute.
+- Bits and eggs come at about the same pace as before, so food and potions keep their value.
+- Gentler care: a starving Digimon earns half XP instead of none. Starving and exhausted together earn a quarter.
+- XP potions: +1,000 XP each. Buy them for 1,000 bits, or crack a spare egg into two.
+- Coding frenzy: each new egg starts 30 minutes of triple XP. Egg progress pauses while it lasts.
+- Forms: switch your Digimon to any form it has reached, keeping its level and XP. The path you chose stays locked.
+- The Food tray is now Items. Drag food or potions onto your Digimon to use them, and drag buddies to rearrange the party.
+- A status bar entry shows your buddy and opens the view. New setting `digimon.openOnStartup` (off by default) opens it in every new window.
+- The Feed button is now Shop, and also sells potions.
+- Existing saves upgrade automatically.
+
 ## [0.1.6] - 2026-09-30
 
 - Faster, finer-grained XP: 1 per 3 seconds of editing, 5 per save (once every 30 seconds), 10 per commit (once a minute), 3 per terminal command (once every 10 seconds), 5 per Claude prompt, and 2 per 30 seconds of Claude work per session.

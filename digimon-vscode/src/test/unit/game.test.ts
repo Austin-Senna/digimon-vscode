@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import {
-    GAME_VERSION, GameState, ROSTER, activeBuddy, chooseEgg, createGame, eggOffer, eggProgress, feedGame, isPartyFull, migrateFromPet, parseGame,
-    recordGameActivity, releaseBuddy, switchBuddy, tickGame,
+    GAME_VERSION, GameState, ROSTER, activeBuddy, buyPotion, chooseEgg, crackEgg, drinkPotion, createGame, eggOffer, eggProgress, feedGame, isFrenzy, isPartyFull, migrateFromPet, parseGame, setGameForm,
+    recordGameActivity, releaseBuddy, reorderBuddies, switchBuddy, tickGame,
 } from '../../model/game';
 import { FOODS, RULES, createEgg, levelOf } from '../../model/pet';
 import { LINES } from '../../model/species';
@@ -13,7 +13,10 @@ function game(overrides: Partial<GameState> = {}): GameState {
     return { ...createGame(T0, () => 0), ...overrides };
 }
 
-/** Send prompts repeatedly (prompts have no cooldown) until lifetime effort reaches `effort`. */
+/**
+ * Send prompts repeatedly (prompts have no cooldown) until lifetime effort reaches `effort`, waiting out any frenzy
+ * since egg progress pauses during one.
+ */
 function earn(state: GameState,
     effort: number,
 ): ReturnType<typeof recordGameActivity> {
@@ -21,7 +24,8 @@ function earn(state: GameState,
     const events = [];
     let t = T0;
     while (current.effort < effort) {
-        const update = recordGameActivity(current, 'prompt', t += 1);
+        t = Math.max(t + 1, current.frenzyUntil);
+        const update = recordGameActivity(current, 'prompt', t);
         current = update.state;
         events.push(...update.events);
     }
@@ -32,6 +36,12 @@ function earn(state: GameState,
 function withSecondBuddy(): GameState {
     const offered = earn(game(), ROSTER.effortPerEgg).state;
     return chooseEgg(offered, offered.eggOffers[0][0], T0).state;
+}
+
+/** A game whose active buddy has hatched and has full meters, so XP is not reduced. */
+function hatchedGame(overrides: Partial<GameState> = {}): GameState {
+    const base = game(overrides);
+    return { ...base, buddies: [{ ...activeBuddy(base), stage: 'babyII', form: 'babyII', xp: 0, lastActivityAt: T0 }] };
 }
 
 suite('game', () => {
@@ -58,7 +68,8 @@ suite('game', () => {
         const broke = game({ bits: 0 });
         const starving = { ...broke, buddies: [{ ...activeBuddy(broke), stage: 'child' as const, fullness: 0 }] };
         const { state } = earn(starving, ROSTER.foodPrices.meat);
-        assert.strictEqual(activeBuddy(state).xp, 0);
+        const prompts = ROSTER.foodPrices.meat / RULES.effortPerActivity.prompt;
+        assert.strictEqual(activeBuddy(state).xp, prompts * RULES.xpPerActivity.prompt * RULES.starvingXpMultiplier, 'half XP while starving');
         const fed = feedGame(state, 'meat').state;
         assert.strictEqual(activeBuddy(fed).fullness, FOODS.meat.fullness);
     });
@@ -220,5 +231,164 @@ suite('game', () => {
         const child = game({ buddies: [{ ...activeBuddy(game()), stage: 'child', lastActivityAt: reopened }] });
         const later = tickGame(child, reopened).state;
         assert.strictEqual(activeBuddy(later).fullness, RULES.maxFullness - RULES.fullnessDecayPerMinute * RULES.maxTickGapMs / MINUTE);
+    });
+
+    test('an egg drop starts a 30 minute triple-XP frenzy', () => {
+        const { state, events } = earn(game(), ROSTER.effortPerEgg);
+        assert.ok(events.some(event => event.kind === 'frenzyStarted'));
+        assert.ok(isFrenzy(state, state.frenzyUntil - 1));
+        assert.ok(!isFrenzy(state, state.frenzyUntil));
+        assert.ok(state.frenzyUntil - T0 <= ROSTER.frenzyMs + MINUTE, 'lasts 30 minutes from the drop');
+    });
+
+    test('frenzy triples pet XP, pauses egg progress, and keeps bits', () => {
+        const base = hatchedGame({ frenzyUntil: T0 + ROSTER.frenzyMs });
+        const { state } = recordGameActivity(base, 'prompt', T0);
+        assert.strictEqual(activeBuddy(state).xp - activeBuddy(base).xp, RULES.xpPerActivity.prompt * 3);
+        assert.strictEqual(state.effort, base.effort);
+        assert.strictEqual(state.bits, base.bits + RULES.effortPerActivity.prompt);
+    });
+
+    test('after a frenzy XP and egg progress return to normal', () => {
+        const base = hatchedGame({ frenzyUntil: T0 });
+        const { state } = recordGameActivity(base, 'prompt', T0);
+        assert.strictEqual(activeBuddy(state).xp, RULES.xpPerActivity.prompt);
+        assert.strictEqual(state.effort, RULES.effortPerActivity.prompt);
+    });
+
+    test('eggs granted together stack their frenzies', () => {
+        const { state } = recordGameActivity(game({ effort: 2 * ROSTER.effortPerEgg - 5, eggsGranted: 0 }), 'prompt', T0);
+        assert.strictEqual(state.eggOffers.length, 2);
+        assert.strictEqual(state.frenzyUntil, T0 + 2 * ROSTER.frenzyMs);
+    });
+
+    test('an edit earns one whole bit', () => {
+        const { state } = recordGameActivity(game({ bits: 0 }), 'edit', T0 + 1_000);
+        assert.strictEqual(state.bits, 1);
+        assert.strictEqual(state.effort, 1);
+    });
+
+    test('version 6 saves load with no potions and no frenzy, unrescaled', () => {
+        const { potions: _potions, frenzyUntil: _frenzy, ...rest } = withSecondBuddy();
+        const migrated = parseGame(JSON.parse(JSON.stringify({ ...rest, version: 6 })))!;
+        assert.strictEqual(migrated.version, GAME_VERSION);
+        assert.strictEqual(migrated.potions, 0);
+        assert.strictEqual(migrated.frenzyUntil, 0);
+        assert.deepStrictEqual(migrated.buddies.map(buddy => buddy.xp), rest.buddies.map(buddy => buddy.xp));
+        assert.strictEqual(migrated.effort, rest.effort);
+        assert.strictEqual(migrated.bits, rest.bits);
+    });
+
+    test('version 6 buddies load showing their stage', () => {
+        const base = game();
+        const adult = { ...activeBuddy(base), stage: 'adult', branch: 'good', form: undefined };
+        const { potions: _potions, frenzyUntil: _frenzy, ...rest } = { ...base, buddies: [adult] };
+        const migrated = parseGame(JSON.parse(JSON.stringify({ ...rest, version: 6 })))!;
+        assert.strictEqual(activeBuddy(migrated).form, 'adult');
+    });
+
+    test('version 7 rejects a bad potion count and reads a bad frenzy as none', () => {
+        const state = game();
+        assert.strictEqual(parseGame({ ...state, potions: -1 }), undefined);
+        assert.strictEqual(parseGame({ ...state, potions: 1.5 }), undefined);
+        assert.strictEqual(parseGame({ ...state, potions: 'many' }), undefined);
+        assert.strictEqual(parseGame({ ...state, frenzyUntil: 'soon' })!.frenzyUntil, 0);
+    });
+
+    test('buying a potion costs 1,000 bits and stocks it', () => {
+        const { state, events } = buyPotion(game({ bits: 1_000 }));
+        assert.strictEqual(state.bits, 0);
+        assert.strictEqual(state.potions, 1);
+        assert.deepStrictEqual(events, [{ kind: 'potionBought' }]);
+    });
+
+    test('a potion cannot be bought without enough bits', () => {
+        const before = game({ bits: 999 });
+        const { state, events } = buyPotion(before);
+        assert.strictEqual(state, before);
+        assert.deepStrictEqual(events, [{ kind: 'cannotAffordPotion' }]);
+    });
+
+    test('a potion gives the active buddy a flat 1,000 XP, even exhausted, at no energy cost', () => {
+        const base = hatchedGame({ potions: 1 });
+        const tired = { ...base, buddies: [{ ...activeBuddy(base), energy: 0 }] };
+        const { state, events } = drinkPotion(tired);
+        assert.strictEqual(state.potions, 0);
+        assert.strictEqual(activeBuddy(state).xp, 1_000);
+        assert.strictEqual(activeBuddy(state).energy, 0);
+        assert.strictEqual(events[0].kind, 'drankPotion');
+    });
+
+    test('drinking with no potions does nothing', () => {
+        const before = hatchedGame();
+        const { state, events } = drinkPotion(before);
+        assert.strictEqual(state, before);
+        assert.deepStrictEqual(events, [{ kind: 'noPotions' }]);
+    });
+
+    test('cracking the oldest egg gives two potions, even with a full party', () => {
+        const full = game({ eggOffers: [['agumon', 'gabumon'], ['piyomon', 'palmon']] });
+        const party = { ...full, buddies: Array.from({ length: ROSTER.maxBuddies }, (_, i) => ({ ...activeBuddy(full), id: i === 0 ? full.activeId : `x${i}` })) };
+        const { state, events } = crackEgg(party, ['agumon', 'gabumon']);
+        assert.deepStrictEqual(state.eggOffers, [['piyomon', 'palmon']]);
+        assert.strictEqual(state.potions, 2);
+        assert.deepStrictEqual(events, [{ kind: 'eggCracked' }]);
+    });
+
+    test('cracking with no egg waiting is a no-op', () => {
+        const before = game();
+        const { state, events } = crackEgg(before, ['agumon', 'gabumon']);
+        assert.strictEqual(state, before);
+        assert.deepStrictEqual(events, []);
+    });
+
+    test('a potion hatches an egg one stage at a time', () => {
+        const { state, events } = drinkPotion(game({ potions: 1 }));
+        assert.strictEqual(activeBuddy(state).stage, 'babyI');
+        assert.ok(events.some(event => event.kind === 'evolved'));
+        assert.strictEqual(activeBuddy(tickGame(state, T0 + 1).state).stage, 'babyII');
+    });
+
+    test('a potion on a waiting Child or a starving pet adds XP without evolving', () => {
+        const waiting = game({ potions: 1, buddies: [{ ...activeBuddy(game()), stage: 'child', xp: 25 * 24 ** 2 }] });
+        const ready = drinkPotion(waiting).state;
+        assert.strictEqual(activeBuddy(ready).stage, 'child');
+        assert.strictEqual(activeBuddy(ready).xp, 25 * 24 ** 2 + 1_000);
+        const starving = game({ potions: 1, buddies: [{ ...activeBuddy(game()), stage: 'babyI', xp: 0, fullness: 0 }] });
+        assert.strictEqual(activeBuddy(drinkPotion(starving).state).stage, 'babyI');
+    });
+
+    test('changing form applies to the active buddy only', () => {
+        const two = withSecondBuddy();
+        const grown = { ...two, buddies: two.buddies.map(buddy => buddy.id === two.activeId ? { ...buddy, stage: 'child' as const, form: 'child' as const } : buddy) };
+        const { state, events } = setGameForm(grown, 'babyI');
+        assert.strictEqual(activeBuddy(state).form, 'babyI');
+        assert.deepStrictEqual(state.buddies.filter(buddy => buddy.id !== two.activeId), grown.buddies.filter(buddy => buddy.id !== two.activeId));
+        assert.strictEqual(events[0].kind, 'formChanged');
+        assert.strictEqual(setGameForm(grown, 'adult').state, grown);
+    });
+
+    test('reorders the party without changing the active buddy', () => {
+        const two = withSecondBuddy();
+        const ids = two.buddies.map(buddy => buddy.id).reverse();
+        const { state } = reorderBuddies(two, ids);
+        assert.deepStrictEqual(state.buddies.map(buddy => buddy.id), ids);
+        assert.strictEqual(state.activeId, two.activeId);
+    });
+
+    test('ignores a stale, partial, or duplicated order', () => {
+        const two = withSecondBuddy();
+        for (const ids of [['b1'], ['b1', 'b1'], ['b1', 'b9'], ['b1', 'b2', 'b3']]) {
+            assert.strictEqual(reorderBuddies(two, ids).state, two, ids.join());
+        }
+    });
+
+    test('cracking an egg the player did not confirm is a no-op', () => {
+        // Another window chose the confirmed egg while this window's modal was open; the next one must survive.
+        const later = game({ eggOffers: [['piyomon', 'palmon']] });
+        const { state, events } = crackEgg(later, ['agumon', 'gabumon']);
+        assert.strictEqual(state, later);
+        assert.deepStrictEqual(events, []);
+        assert.strictEqual(crackEgg(later, ['piyomon', 'palmon']).state.potions, ROSTER.potionsPerEgg);
     });
 });

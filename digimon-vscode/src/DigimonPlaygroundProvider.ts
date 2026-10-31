@@ -5,8 +5,8 @@ import { PetController } from './PetController';
 import { Appearance, resolveAppearance } from './appearance';
 import { ClaudeAnimation, ClaudeListener } from './claude/bridge';
 import { ClaudeStatus } from './claude/events';
-import { GameEvent, GameState, ROSTER, activeBuddy, eggProgress, isPartyFull } from './model/game';
-import { FOODS, FoodKind, Mood, PetState, RULES, isReadyToChoose, levelOf, mood, nextEvolutionLevel, species, xpForLevel } from './model/pet';
+import { GameEvent, GameState, ROSTER, activeBuddy, eggProgress, isFrenzy, isPartyFull } from './model/game';
+import { FOODS, FoodKind, Mood, PetState, RULES, isReadyToChoose, levelOf, mood, nextEvolutionLevel, species, unlockedForms, xpForLevel } from './model/pet';
 import { BRANCHES, Branch, STAGES, STAGE_LABELS, Stage, displayName, findLine, spritePath } from './model/species';
 
 type Animation = ClaudeAnimation | 'happy' | 'eat' | 'levelUp';
@@ -32,10 +32,16 @@ const EVENT_ANIMATIONS: Partial<Record<GameEvent['kind'], Animation>> = {
     ate: 'eat',
     refused: 'refuse',
     cannotAfford: 'refuse',
+    cannotAffordPotion: 'refuse',
+    noPotions: 'refuse',
+    drankPotion: 'happy',
+    potionBought: 'happy',
+    eggCracked: 'happy',
     woke: 'happy',
     leveledUp: 'levelUp',
     switched: 'happy',
     eggChosen: 'happy',
+    formChanged: 'happy',
 };
 
 export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, ClaudeListener, vscode.Disposable {
@@ -53,8 +59,8 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             _controller.onDidChange(events => {
                 this._postState();
                 for (const event of events) {
-                    if (event.kind === 'evolved') {
-                        this._playEvolution(event.from, event.to, event.stage);
+                    if (event.kind === 'evolved' || (event.kind === 'formChanged' && event.up)) {
+                        this._playEvolution(event.from, event.fromStage, event.to, event.stage);
                         continue;
                     }
                     const animation = EVENT_ANIMATIONS[event.kind];
@@ -92,6 +98,16 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
                 this._controller.chooseEgg(message.lineId);
             } else if (message?.type === 'switch' && typeof message.id === 'string') {
                 this._controller.switchTo(message.id);
+            } else if (message?.type === 'buyPotion') {
+                this._controller.buyPotion();
+            } else if (message?.type === 'drinkPotion') {
+                this._controller.drinkPotion();
+            } else if (message?.type === 'crackEgg') {
+                void vscode.commands.executeCommand('digimon.crackEgg');
+            } else if (message?.type === 'changeForm') {
+                void vscode.commands.executeCommand('digimon.changeForm');
+            } else if (message?.type === 'reorder' && Array.isArray(message.ids) && message.ids.every((id: unknown) => typeof id === 'string')) {
+                this._controller.reorder(message.ids as string[]);
             }
         });
         webviewView.onDidDispose(() => {
@@ -111,8 +127,12 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
         void this._view?.webview.postMessage({ type: 'play', animation });
     }
 
-    /** The evolution scene needs both forms: the old sprite goes into the sphere and the new one comes out. */
+    /**
+     * The evolution scene needs both forms: the old sprite goes into the sphere and the new one comes out.
+     * The old form is whatever was shown, which may be several stages below the new one.
+     */
     private _playEvolution(from: string,
+        previous: Stage,
         to: string,
         stage: Stage,
     ): void {
@@ -120,7 +140,6 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
         if (!webview) {
             return;
         }
-        const previous = STAGES[STAGES.indexOf(stage) - 1];
         const uri = (atStage: Stage, name: string) =>
             webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, ...spritePath(atStage, name))).toString();
         void webview.postMessage({
@@ -152,7 +171,7 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
         void view.webview.postMessage({
             type: 'state',
             name: displayName(species(state)),
-            stage: STAGE_LABELS[state.stage],
+            stage: STAGE_LABELS[state.form],
             spriteUri: this._spriteUri(view.webview, state),
             isEgg: state.stage === 'digitama',
             mood: currentMood,
@@ -169,7 +188,13 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             age: formatDuration(state.ageMs),
             claudeStatus: this._claudeStatus,
             claudeLabel: claudeLabel(this._claudeStatus, this._claudeWaiting),
+            canChangeForm: unlockedForms(state).length > 1,
             bits: game.bits,
+            potions: game.potions,
+            potionPrice: ROSTER.potionPrice,
+            potionXp: ROSTER.potionXp,
+            frenzyMsLeft: isFrenzy(game, now) ? game.frenzyUntil - now : 0,
+            frenzyMs: ROSTER.frenzyMs,
             food: (Object.keys(FOODS) as FoodKind[]).map(kind => ({
                 kind,
                 name: FOODS[kind].name,
@@ -180,7 +205,7 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             roster: game.buddies.map(buddy => ({
                 id: buddy.id,
                 name: displayName(species(buddy)),
-                stage: STAGE_LABELS[buddy.stage],
+                stage: STAGE_LABELS[buddy.form],
                 spriteUri: this._spriteUri(view.webview, buddy),
                 isEgg: buddy.stage === 'digitama',
                 active: buddy.id === game.activeId,
@@ -229,7 +254,7 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
     private _spriteUri(webview: vscode.Webview,
         pet: PetState,
     ): string {
-        return webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, ...spritePath(pet.stage, species(pet)))).toString();
+        return webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, ...spritePath(pet.form, species(pet)))).toString();
     }
 
     private _getHtmlForWebview(webview: vscode.Webview): string {

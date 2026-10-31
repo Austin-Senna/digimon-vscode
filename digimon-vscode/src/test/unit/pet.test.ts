@@ -1,8 +1,8 @@
 import * as assert from 'assert';
 import {
-    FOODS, chooseBranch, isReadyToChoose, levelOf, nextEvolutionLevel, xpForLevel, PetState, RULES, activityEffort, createEgg, feed, isAsleep, mood, parseState, recordActivity, species, tick,
+    FOODS, chooseBranch, isReadyToChoose, levelOf, nextEvolutionLevel, xpForLevel, PetState, RULES, activityEffort, createEgg, feed, isAsleep, mood, parseState, recordActivity, setForm, species, tick, unlockedForms,
 } from '../../model/pet';
-import { LINES } from '../../model/species';
+import { LINES, Stage } from '../../model/species';
 
 const MINUTE = 60_000;
 const T0 = 1_700_000_000_000;
@@ -12,7 +12,7 @@ function egg(overrides: Partial<PetState> = {}): PetState {
 }
 
 function hatched(overrides: Partial<PetState> = {}): PetState {
-    return egg({ stage: 'child', xp: xpForLevel(RULES.evolveAtLevel.babyII), ...overrides });
+    return egg({ stage: 'child', form: overrides.stage ?? 'child', xp: xpForLevel(RULES.evolveAtLevel.babyII), ...overrides });
 }
 
 /** Tick forward in steps no larger than the gap clamp, as the controller does. */
@@ -45,7 +45,7 @@ suite('pet model', () => {
         const update = tick(egg({ xp: xpForLevel(RULES.evolveAtLevel.digitama) }), T0 + MINUTE);
         assert.strictEqual(update.state.stage, 'babyI');
         assert.deepStrictEqual(update.events, [
-            { kind: 'evolved', from: 'Agu_Digitama', to: LINES[0].babyI, stage: 'babyI' },
+            { kind: 'evolved', from: 'Agu_Digitama', fromStage: 'digitama', to: LINES[0].babyI, stage: 'babyI' },
         ]);
     });
 
@@ -129,9 +129,9 @@ suite('pet model', () => {
 
     test('effort ignores hunger but respects the active-second cap', () => {
         const starving = hatched({ fullness: 0, lastEditXpAt: T0 });
-        assert.strictEqual(activityEffort(starving, 'commit', T0 + 1), RULES.xpPerActivity.commit);
+        assert.strictEqual(activityEffort(starving, 'commit', T0 + 1), RULES.effortPerActivity.commit);
         assert.strictEqual(activityEffort(starving, 'edit', T0 + 1), 0);
-        assert.strictEqual(activityEffort(starving, 'edit', T0 + RULES.cooldownMs.edit), RULES.xpPerActivity.edit);
+        assert.strictEqual(activityEffort(starving, 'edit', T0 + RULES.cooldownMs.edit), RULES.effortPerActivity.edit);
     });
 
     test('edits are throttled to one XP per cooldown', () => {
@@ -173,10 +173,56 @@ suite('pet model', () => {
         assert.strictEqual(committed.xp, saved.xp + RULES.xpPerActivity.commit);
     });
 
-    test('starving pets gain no XP', () => {
+    test('starving pets gain half XP', () => {
         const state = hatched({ fullness: 0 });
-        const update = recordActivity(state, 'commit', T0 + 1);
-        assert.strictEqual(update.state.xp, state.xp);
+        const update = recordActivity(state, 'prompt', T0 + 1);
+        assert.strictEqual(update.state.xp - state.xp, 15 * 0.5);
+    });
+
+    test('starving and exhausted stack to a quarter', () => {
+        const state = hatched({ fullness: 0, energy: 0 });
+        assert.strictEqual(recordActivity(state, 'prompt', T0 + 1).state.xp - state.xp, 15 * 0.25);
+    });
+
+    test('xpMultiplier scales XP after penalties', () => {
+        const state = hatched({ fullness: 0 });
+        assert.strictEqual(recordActivity(state, 'prompt', T0 + 1, 3).state.xp - state.xp, 15 * 0.5 * 3);
+    });
+
+    test('energy is charged on base XP, whatever the multipliers', () => {
+        const state = hatched();
+        const plain = recordActivity(state, 'prompt', T0 + 1).state.energy;
+        assert.strictEqual(plain, RULES.maxEnergy - 15 * RULES.energyCostPerXp);
+        assert.strictEqual(recordActivity(state, 'prompt', T0 + 1, 3).state.energy, plain);
+        assert.strictEqual(recordActivity(hatched({ fullness: 0 }), 'prompt', T0 + 1).state.energy, plain);
+    });
+
+    test('edits earn once per second', () => {
+        const first = recordActivity(hatched(), 'edit', T0 + 1_000).state;
+        assert.strictEqual(recordActivity(first, 'edit', T0 + 1_500).state.xp, first.xp);
+        assert.strictEqual(recordActivity(first, 'edit', T0 + 2_000).state.xp, first.xp + 1);
+    });
+
+    test('an active minute earns 10 XP once per minute and wakes the pet', () => {
+        const state = hatched({ lastActivityAt: T0 - RULES.sleepAfterMs });
+        const first = recordActivity(state, 'active', T0);
+        assert.strictEqual(first.state.xp - state.xp, 10);
+        assert.ok(first.events.some(event => event.kind === 'woke'));
+        assert.strictEqual(recordActivity(first.state, 'active', T0 + 59_000).state.xp, first.state.xp);
+        assert.strictEqual(recordActivity(first.state, 'active', T0 + MINUTE).state.xp, first.state.xp + 10);
+    });
+
+    test('XP per activity is tripled for manual work and 2.5x for Claude work', () => {
+        assert.deepStrictEqual(RULES.xpPerActivity, { edit: 1, save: 15, commit: 30, command: 9, prompt: 15, claudeWork: 5, active: 10 });
+    });
+
+    test('effort keeps 0.1.6 rates in whole numbers; active minutes earn none', () => {
+        const state = hatched();
+        assert.strictEqual(activityEffort(state, 'edit', T0), 1);
+        assert.strictEqual(activityEffort(state, 'save', T0), 5);
+        assert.strictEqual(activityEffort(state, 'prompt', T0), 5);
+        assert.strictEqual(activityEffort(state, 'claudeWork', T0), 2);
+        assert.strictEqual(activityEffort(state, 'active', T0), 0);
     });
 
     test('exhausted pets gain reduced XP and say so once', () => {
@@ -218,7 +264,7 @@ suite('pet model', () => {
         assert.strictEqual(species(chooseBranch(ready, 'good').state), LINES[0].good[0]);
         const dark = chooseBranch(ready, 'bad');
         assert.strictEqual(species(dark.state), LINES[0].bad[0]);
-        assert.deepStrictEqual(dark.events, [{ kind: 'evolved', from: LINES[0].child, to: LINES[0].bad[0], stage: 'adult' }]);
+        assert.deepStrictEqual(dark.events, [{ kind: 'evolved', from: LINES[0].child, fromStage: 'child', to: LINES[0].bad[0], stage: 'adult' }]);
     });
 
     test('choosing is ignored until the Child is ready, and while starving', () => {
@@ -249,8 +295,9 @@ suite('pet model', () => {
     });
 
     test('parseState treats cooldowns missing from older saves as never used', () => {
-        const { lastSaveXpAt: _save, lastCommitXpAt: _commit, lastCommandXpAt: _command, ...old } = hatched();
+        const { lastSaveXpAt: _save, lastCommitXpAt: _commit, lastCommandXpAt: _command, lastActiveXpAt: _active, ...old } = hatched();
         const parsed = parseState(old)!;
+        assert.strictEqual(parsed.lastActiveXpAt, 0);
         assert.strictEqual(parsed.lastSaveXpAt, 0);
         assert.strictEqual(parsed.lastCommitXpAt, 0);
         assert.strictEqual(parsed.lastCommandXpAt, 0);
@@ -261,5 +308,68 @@ suite('pet model', () => {
         const parsed = parseState(old)!;
         assert.strictEqual(parsed.branch, 'bad');
         assert.ok(!('careMistakes' in parsed) && !('starvingMs' in parsed));
+    });
+
+    test('an Ultimate can show any form from Baby I up, keeping level and XP', () => {
+        const top = hatched({ stage: 'ultimate', form: 'ultimate', branch: 'good', xp: xpForLevel(50) });
+        const { state, events } = setForm(top, 'child');
+        assert.strictEqual(state.form, 'child');
+        assert.strictEqual(state.stage, 'ultimate');
+        assert.strictEqual(state.xp, top.xp);
+        assert.strictEqual(species(state), LINES[0].child);
+        assert.deepStrictEqual(events, [{ kind: 'formChanged', from: LINES[0].good[2], fromStage: 'ultimate', to: LINES[0].child, stage: 'child', up: false }]);
+        assert.strictEqual((setForm(state, 'perfect').events[0] as { up: boolean }).up, true);
+    });
+
+    test('unlocked forms run from Baby I to the highest stage reached', () => {
+        assert.deepStrictEqual(unlockedForms(hatched({ stage: 'adult', branch: 'bad' })), ['babyI', 'babyII', 'child', 'adult']);
+        assert.deepStrictEqual(unlockedForms(egg()), ['digitama']);
+    });
+
+    test('forms above the highest stage, and Digitama, are refused', () => {
+        const child = hatched({ form: 'child' });
+        for (const form of ['adult', 'digitama'] as const) {
+            const update = setForm(child, form);
+            assert.strictEqual(update.state, child, form);
+            assert.deepStrictEqual(update.events, [{ kind: 'refused' }], form);
+        }
+    });
+
+    test('choosing the form already shown changes nothing', () => {
+        const child = hatched({ form: 'child' });
+        assert.deepStrictEqual(setForm(child, 'child'), { state: child, events: [] });
+    });
+
+    test('changing form is refused while starving', () => {
+        const starving = hatched({ form: 'child', fullness: 0 });
+        assert.strictEqual(setForm(starving, 'babyII').state, starving);
+    });
+
+    test('reaching a new stage while devolved jumps to it, starting the scene from the shown form', () => {
+        const perfect = hatched({ stage: 'perfect', form: 'child', branch: 'good', xp: xpForLevel(RULES.evolveAtLevel.perfect) - 1 });
+        const { state, events } = recordActivity(perfect, 'edit', T0 + 1);
+        assert.strictEqual(state.stage, 'ultimate');
+        assert.strictEqual(state.form, 'ultimate');
+        const evolved = events.find(event => event.kind === 'evolved') as { from: string; fromStage: Stage; to: string };
+        assert.strictEqual(evolved.fromStage, 'child');
+        assert.strictEqual(evolved.from, LINES[0].child);
+        assert.strictEqual(evolved.to, LINES[0].good[2]);
+    });
+
+    test('the Adult choice works from a lower form and locks the branch', () => {
+        const waiting = hatched({ form: 'babyII', xp: xpForLevel(RULES.evolveAtLevel.child) });
+        const { state, events } = chooseBranch(waiting, 'bad');
+        assert.strictEqual(state.stage, 'adult');
+        assert.strictEqual(state.form, 'adult');
+        assert.strictEqual(state.branch, 'bad');
+        assert.strictEqual((events[0] as { fromStage: Stage }).fromStage, 'babyII');
+    });
+
+    test('parseState defaults a missing or impossible form to the stage', () => {
+        const { form: _form, ...old } = hatched();
+        assert.strictEqual(parseState(old)!.form, 'child');
+        assert.strictEqual(parseState({ ...hatched(), form: 'ultimate' })!.form, 'child');
+        assert.strictEqual(parseState({ ...hatched(), form: 'digitama' })!.form, 'child');
+        assert.strictEqual(parseState({ ...hatched(), form: 'babyII' })!.form, 'babyII');
     });
 });

@@ -8,12 +8,30 @@ const TRACKED_SCHEMES = new Set(['file', 'untitled', 'vscode-notebook-cell', 'vs
 export function trackActivity(controller: PetController): vscode.Disposable {
     // Only saves that write real changes count; saving an unchanged file over and over earns nothing.
     const savingChanges = new Set<string>();
+    // Reading, navigating, and debugging count as active minutes. Only the focused window credits them, so several
+    // open windows never pay twice; the model's one-minute cooldown does the throttling.
+    const recordActive = () => {
+        if (vscode.window.state.focused) {
+            controller.recordActivity('active');
+        }
+    };
+    const recordActiveIn = (editor: vscode.TextEditor | undefined) => {
+        if (editor && TRACKED_SCHEMES.has(editor.document.uri.scheme)) {
+            recordActive();
+        }
+    };
     const disposables: vscode.Disposable[] = [
         vscode.workspace.onDidChangeTextDocument(event => {
             if (event.contentChanges.length > 0 && TRACKED_SCHEMES.has(event.document.uri.scheme)) {
                 controller.recordActivity('edit');
+                recordActive();
             }
         }),
+        vscode.window.onDidChangeTextEditorSelection(event => recordActiveIn(event.textEditor)),
+        vscode.window.onDidChangeTextEditorVisibleRanges(event => recordActiveIn(event.textEditor)),
+        vscode.window.onDidChangeActiveTextEditor(recordActiveIn),
+        vscode.debug.onDidStartDebugSession(recordActive),
+        vscode.debug.onDidTerminateDebugSession(recordActive),
         vscode.workspace.onWillSaveTextDocument(event => {
             if (event.document.isDirty && TRACKED_SCHEMES.has(event.document.uri.scheme)) {
                 savingChanges.add(event.document.uri.toString());

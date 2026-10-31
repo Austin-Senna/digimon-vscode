@@ -1,9 +1,11 @@
 import {
-    ActivityKind, FoodKind, PetEvent, PetState, activityEffort, chooseBranch, createEgg, feed, parseState, recordActivity, tick,
+    ActivityKind, FoodKind, PetEvent, PetState, activityEffort, chooseBranch, createEgg, feed, gainXp, parseState, recordActivity, setForm, tick,
 } from './pet';
-import { Branch, LINES } from './species';
+import { Branch, LINES, Stage } from './species';
 
-export const GAME_VERSION = 6;
+export const GAME_VERSION = 7;
+
+const MINUTE = 60_000;
 
 export const ROSTER = {
     maxBuddies: 6,
@@ -16,11 +18,19 @@ export const ROSTER = {
     startingBits: 300,
     /** Sirloin refills both meters, so it costs as much as three single-stat foods. */
     foodPrices: { meat: 100, vitamin: 100, sirloin: 300 } as Record<FoodKind, number>,
+    /** Each egg earned starts a coding frenzy: pet XP is multiplied and egg progress pauses until it ends. */
+    frenzyMs: 30 * MINUTE,
+    frenzyXpMultiplier: 3,
+    potionPrice: 1_000,
+    potionXp: 1_000,
+    /** Potions from cracking one spare egg. */
+    potionsPerEgg: 2,
 };
 
 /**
- * Version 6 roughly tripled XP income and scaled levels, eggs, and prices up to match. Older saves are rescaled on
- * load so every buddy keeps its level, egg progress is kept, and bits keep their buying power.
+ * Version 6 roughly tripled XP income and scaled levels, eggs, and prices up to match. Saves before it are rescaled on
+ * load so every buddy keeps its level, egg progress is kept, and bits keep their buying power. Version 7 added
+ * potions and the frenzy without touching the curve, so version 6 saves load unscaled.
  */
 const V6_RESCALE = { xp: 25 / 15, effort: 5_000 / 1_500, bits: 2 };
 
@@ -63,13 +73,23 @@ export interface GameState {
     readonly nextBuddyId: number;
     /** Crediting progress per recent Claude session, keyed by session id. */
     readonly claudeSessions: Readonly<Record<string, ClaudeSessionCredit>>;
+    /** XP potions in stock. */
+    readonly potions: number;
+    /** When the current coding frenzy ends (epoch ms); 0 or past means none. */
+    readonly frenzyUntil: number;
 }
 
 export type GameEvent =
     | PetEvent
     | { kind: 'eggOffered' }
+    | { kind: 'frenzyStarted'; until: number }
     | { kind: 'eggChosen'; lineId: string }
     | { kind: 'cannotAfford'; food: FoodKind }
+    | { kind: 'potionBought' }
+    | { kind: 'cannotAffordPotion' }
+    | { kind: 'drankPotion' }
+    | { kind: 'noPotions' }
+    | { kind: 'eggCracked' }
     | { kind: 'switched'; id: string };
 
 export interface GameUpdate {
@@ -98,6 +118,12 @@ export function activeBuddy(game: GameState): Buddy {
     return buddy;
 }
 
+export function isFrenzy(game: GameState,
+    now: number,
+): boolean {
+    return now < game.frenzyUntil;
+}
+
 /** How far lifetime effort is toward the next egg. */
 export function eggProgress(game: GameState): { current: number; target: number } {
     return { current: game.effort % ROSTER.effortPerEgg, target: ROSTER.effortPerEgg };
@@ -115,13 +141,19 @@ export function recordGameActivity(game: GameState,
     now: number,
 ): GameUpdate {
     const active = activeBuddy(game);
+    const frenzy = isFrenzy(game, now);
     const effort = activityEffort(active, kind, now);
-    const update = recordActivity(active, kind, now);
+    const update = recordActivity(active, kind, now, frenzy ? ROSTER.frenzyXpMultiplier : 1);
     if (update.state === active && effort === 0) {
         return { state: game, events: update.events };
     }
-    const next = replaceActive({ ...game, effort: game.effort + effort, bits: game.bits + effort * ROSTER.bitsPerEffort }, update.state);
-    const rewards = grantEggs(next);
+    // Bits always come in; egg progress pauses during a frenzy so one frenzy cannot bring on the next.
+    const next = replaceActive({
+        ...game,
+        effort: frenzy ? game.effort : game.effort + effort,
+        bits: game.bits + effort * ROSTER.bitsPerEffort,
+    }, update.state);
+    const rewards = grantEggs(next, now);
     return { state: rewards.state, events: [...update.events, ...rewards.events] };
 }
 
@@ -140,10 +172,52 @@ export function feedGame(game: GameState,
     return { state: replaceActive({ ...game, bits: game.bits - price }, update.state), events: update.events };
 }
 
+/** Buy one XP potion into stock. */
+export function buyPotion(game: GameState): GameUpdate {
+    if (game.bits < ROSTER.potionPrice) {
+        return { state: game, events: [{ kind: 'cannotAffordPotion' }] };
+    }
+    return { state: { ...game, bits: game.bits - ROSTER.potionPrice, potions: game.potions + 1 }, events: [{ kind: 'potionBought' }] };
+}
+
+/** Give the active buddy one potion's XP, which ignores care penalties and the frenzy. */
+export function drinkPotion(game: GameState): GameUpdate {
+    if (game.potions <= 0) {
+        return { state: game, events: [{ kind: 'noPotions' }] };
+    }
+    const update = gainXp(activeBuddy(game), ROSTER.potionXp);
+    return {
+        state: replaceActive({ ...game, potions: game.potions - 1 }, update.state),
+        events: [{ kind: 'drankPotion' }, ...update.events],
+    };
+}
+
+/**
+ * Turn the oldest waiting egg offer into potions instead of a buddy. Works with a full party. `confirmed` is the offer
+ * the player agreed to crack; if another window has taken it meanwhile, nothing happens rather than cracking the next.
+ */
+export function crackEgg(game: GameState,
+    confirmed: EggOffer,
+): GameUpdate {
+    const [offer, ...rest] = game.eggOffers;
+    if (!offer || offer.length !== confirmed.length || !offer.every((lineId, i) => lineId === confirmed[i])) {
+        return { state: game, events: [] };
+    }
+    return { state: { ...game, eggOffers: rest, potions: game.potions + ROSTER.potionsPerEgg }, events: [{ kind: 'eggCracked' }] };
+}
+
 export function chooseGameBranch(game: GameState,
     branch: Branch,
 ): GameUpdate {
     const update = chooseBranch(activeBuddy(game), branch);
+    return { state: update.state === activeBuddy(game) ? game : replaceActive(game, update.state), events: update.events };
+}
+
+/** Show another unlocked form of the active buddy. */
+export function setGameForm(game: GameState,
+    form: Stage,
+): GameUpdate {
+    const update = setForm(activeBuddy(game), form);
     return { state: update.state === activeBuddy(game) ? game : replaceActive(game, update.state), events: update.events };
 }
 
@@ -176,6 +250,17 @@ export function releaseBuddy(game: GameState,
         return { state: game, events: [] };
     }
     return { state: { ...game, buddies: game.buddies.filter(buddy => buddy.id !== id) }, events: [] };
+}
+
+/** Put the party in the order of `ids`, which must name every buddy exactly once; anything else (a stale order from another window) is ignored. */
+export function reorderBuddies(game: GameState,
+    ids: readonly string[],
+): GameUpdate {
+    const byId = new Map(game.buddies.map(buddy => [buddy.id, buddy]));
+    if (ids.length !== byId.size || new Set(ids).size !== ids.length || !ids.every(id => byId.has(id))) {
+        return { state: game, events: [] };
+    }
+    return { state: { ...game, buddies: ids.map(id => byId.get(id)!) }, events: [] };
 }
 
 export function isPartyFull(game: GameState): boolean {
@@ -244,6 +329,10 @@ export function parseGame(raw: unknown): GameState | undefined {
     if (!money || !finite(money.bits) || !finite(money.eggsGranted)) {
         return undefined;
     }
+    const potions = candidate.version >= 7 ? candidate.potions : 0;
+    if (typeof potions !== 'number' || !Number.isInteger(potions) || potions < 0) {
+        return undefined;
+    }
     // Flooring keeps levels and eggs earned: both thresholds land on whole numbers after rescaling.
     const rescale = candidate.version < 6;
     return {
@@ -256,6 +345,9 @@ export function parseGame(raw: unknown): GameState | undefined {
         eggsGranted: money.eggsGranted,
         nextBuddyId: candidate.nextBuddyId,
         claudeSessions: candidate.version >= 5 ? parseClaudeSessions(candidate.claudeSessions) : {},
+        potions,
+        // Bookkeeping like the session map: a malformed value only ends a frenzy early.
+        frenzyUntil: finite(candidate.frenzyUntil) ? candidate.frenzyUntil : 0,
     };
 }
 
@@ -322,6 +414,8 @@ function withFirstBuddy(pet: PetState,
         eggsGranted: 0,
         nextBuddyId: 2,
         claudeSessions: {},
+        potions: 0,
+        frenzyUntil: 0,
     };
 }
 
@@ -334,8 +428,9 @@ function replaceActive(game: GameState,
     };
 }
 
-/** Each egg milestone adds an offer of two lines; the player picks one with `chooseEgg`. */
+/** Each egg milestone adds an offer of two lines, which the player picks with `chooseEgg`, and a frenzy. */
 function grantEggs(game: GameState,
+    now: number,
     random: () => number = Math.random,
 ): GameUpdate {
     const due = Math.floor(game.effort / ROSTER.effortPerEgg) - game.eggsGranted;
@@ -344,8 +439,9 @@ function grantEggs(game: GameState,
     }
     const owned = game.buddies.map(buddy => buddy.lineId);
     const offers = Array.from({ length: due }, () => eggOffer(owned, random));
+    const frenzyUntil = Math.max(now, game.frenzyUntil) + due * ROSTER.frenzyMs;
     return {
-        state: { ...game, eggOffers: [...game.eggOffers, ...offers], eggsGranted: game.eggsGranted + due },
-        events: offers.map(() => ({ kind: 'eggOffered' as const })),
+        state: { ...game, eggOffers: [...game.eggOffers, ...offers], eggsGranted: game.eggsGranted + due, frenzyUntil },
+        events: [...offers.map(() => ({ kind: 'eggOffered' as const })), { kind: 'frenzyStarted', until: frenzyUntil }],
     };
 }

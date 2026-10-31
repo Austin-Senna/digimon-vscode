@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import { creditClaudeEvent } from './claude/credit';
 import { ClaudeEvent } from './claude/events';
-import { GameState, GameEvent, GameUpdate, activeBuddy, chooseEgg, chooseGameBranch, feedGame, recordGameActivity, releaseBuddy, switchBuddy, tickGame, createGame } from './model/game';
+import { EggOffer, GameState, GameEvent, GameUpdate, activeBuddy, buyPotion, chooseEgg, chooseGameBranch, crackEgg, drinkPotion, feedGame, recordGameActivity, releaseBuddy, reorderBuddies, setGameForm, switchBuddy, tickGame, createGame } from './model/game';
 import { ActivityKind, FoodKind, PetState } from './model/pet';
-import { Branch } from './model/species';
+import { Branch, Stage } from './model/species';
 import { GameStore } from './store';
 
 const TICK_INTERVAL_MS = 30_000;
@@ -55,8 +55,24 @@ export class PetController implements vscode.Disposable {
         this._apply(now => feedGame(this._store.load(now), food));
     }
 
+    buyPotion(): void {
+        this._apply(now => buyPotion(this._store.load(now)));
+    }
+
+    drinkPotion(): void {
+        this._apply(now => drinkPotion(this._store.load(now)));
+    }
+
+    crackEgg(confirmed: EggOffer): void {
+        this._apply(now => crackEgg(this._store.load(now), confirmed));
+    }
+
     choose(branch: Branch): void {
         this._apply(now => chooseGameBranch(this._store.load(now), branch));
+    }
+
+    setForm(form: Stage): void {
+        this._apply(now => setGameForm(this._store.load(now), form));
     }
 
     switchTo(id: string): void {
@@ -65,6 +81,10 @@ export class PetController implements vscode.Disposable {
 
     release(id: string): void {
         this._apply(now => releaseBuddy(this._store.load(now), id));
+    }
+
+    reorder(ids: readonly string[]): void {
+        this._apply(now => reorderBuddies(this._store.load(now), ids));
     }
 
     chooseEgg(lineId: string): void {
