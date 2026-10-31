@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import {
-    GAME_VERSION, GameState, ROSTER, activeBuddy, chooseEgg, createGame, eggOffer, eggProgress, feedGame, isFrenzy, isPartyFull, migrateFromPet, parseGame,
+    GAME_VERSION, GameState, ROSTER, activeBuddy, buyPotion, chooseEgg, crackEgg, drinkPotion, createGame, eggOffer, eggProgress, feedGame, isFrenzy, isPartyFull, migrateFromPet, parseGame,
     recordGameActivity, releaseBuddy, switchBuddy, tickGame,
 } from '../../model/game';
 import { FOODS, RULES, createEgg, levelOf } from '../../model/pet';
@@ -285,5 +285,68 @@ suite('game', () => {
         assert.strictEqual(parseGame({ ...state, potions: 1.5 }), undefined);
         assert.strictEqual(parseGame({ ...state, potions: 'many' }), undefined);
         assert.strictEqual(parseGame({ ...state, frenzyUntil: 'soon' })!.frenzyUntil, 0);
+    });
+
+    test('buying a potion costs 1,000 bits and stocks it', () => {
+        const { state, events } = buyPotion(game({ bits: 1_000 }));
+        assert.strictEqual(state.bits, 0);
+        assert.strictEqual(state.potions, 1);
+        assert.deepStrictEqual(events, [{ kind: 'potionBought' }]);
+    });
+
+    test('a potion cannot be bought without enough bits', () => {
+        const before = game({ bits: 999 });
+        const { state, events } = buyPotion(before);
+        assert.strictEqual(state, before);
+        assert.deepStrictEqual(events, [{ kind: 'cannotAffordPotion' }]);
+    });
+
+    test('a potion gives the active buddy a flat 1,000 XP, even exhausted, at no energy cost', () => {
+        const base = hatchedGame({ potions: 1 });
+        const tired = { ...base, buddies: [{ ...activeBuddy(base), energy: 0 }] };
+        const { state, events } = drinkPotion(tired);
+        assert.strictEqual(state.potions, 0);
+        assert.strictEqual(activeBuddy(state).xp, 1_000);
+        assert.strictEqual(activeBuddy(state).energy, 0);
+        assert.strictEqual(events[0].kind, 'drankPotion');
+    });
+
+    test('drinking with no potions does nothing', () => {
+        const before = hatchedGame();
+        const { state, events } = drinkPotion(before);
+        assert.strictEqual(state, before);
+        assert.deepStrictEqual(events, [{ kind: 'noPotions' }]);
+    });
+
+    test('cracking the oldest egg gives two potions, even with a full party', () => {
+        const full = game({ eggOffers: [['agumon', 'gabumon'], ['piyomon', 'palmon']] });
+        const party = { ...full, buddies: Array.from({ length: ROSTER.maxBuddies }, (_, i) => ({ ...activeBuddy(full), id: i === 0 ? full.activeId : `x${i}` })) };
+        const { state, events } = crackEgg(party);
+        assert.deepStrictEqual(state.eggOffers, [['piyomon', 'palmon']]);
+        assert.strictEqual(state.potions, 2);
+        assert.deepStrictEqual(events, [{ kind: 'eggCracked' }]);
+    });
+
+    test('cracking with no egg waiting is a no-op', () => {
+        const before = game();
+        const { state, events } = crackEgg(before);
+        assert.strictEqual(state, before);
+        assert.deepStrictEqual(events, []);
+    });
+
+    test('a potion hatches an egg one stage at a time', () => {
+        const { state, events } = drinkPotion(game({ potions: 1 }));
+        assert.strictEqual(activeBuddy(state).stage, 'babyI');
+        assert.ok(events.some(event => event.kind === 'evolved'));
+        assert.strictEqual(activeBuddy(tickGame(state, T0 + 1).state).stage, 'babyII');
+    });
+
+    test('a potion on a waiting Child or a starving pet adds XP without evolving', () => {
+        const waiting = game({ potions: 1, buddies: [{ ...activeBuddy(game()), stage: 'child', xp: 25 * 24 ** 2 }] });
+        const ready = drinkPotion(waiting).state;
+        assert.strictEqual(activeBuddy(ready).stage, 'child');
+        assert.strictEqual(activeBuddy(ready).xp, 25 * 24 ** 2 + 1_000);
+        const starving = game({ potions: 1, buddies: [{ ...activeBuddy(game()), stage: 'babyI', xp: 0, fullness: 0 }] });
+        assert.strictEqual(activeBuddy(drinkPotion(starving).state).stage, 'babyI');
     });
 });

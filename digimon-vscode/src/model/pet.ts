@@ -270,15 +270,14 @@ export function recordActivity(state: PetState,
     if (energy <= 0 && state.energy > 0) {
         events.push({ kind: 'exhausted' });
     }
-    next = { ...next, xp: state.xp + xp, energy };
-    if (levelOf(next.xp) > levelOf(state.xp)) {
-        events.push({ kind: 'leveledUp', level: levelOf(next.xp) });
-    }
-    if (isReadyToChoose(next) && !isReadyToChoose(state)) {
-        events.push({ kind: 'readyToChoose' });
-    }
-    const evolution = evolve(next);
-    return { state: evolution.state, events: [...events, ...evolution.events] };
+    return afterXp(state, { ...next, xp: state.xp + xp, energy }, events);
+}
+
+/** Grant XP outright (a potion): no care penalties, no energy cost, no cooldown. */
+export function gainXp(state: PetState,
+    xp: number,
+): Update {
+    return afterXp(state, { ...state, xp: state.xp + xp }, []);
 }
 
 /** Eat one food. Refused (and not consumed) by eggs, or when the food would change nothing. */
@@ -337,6 +336,21 @@ export function parseState(raw: unknown): PetState | undefined {
     NUMBER_FIELDS.forEach(key => state[key] = candidate[key]);
     OPTIONAL_NUMBER_FIELDS.forEach(key => state[key] = Number.isFinite(candidate[key]) ? candidate[key] : 0);
     return state as unknown as PetState;
+}
+
+/** Announce levels and a waiting choice that `next`'s new XP brought, then evolve at most one stage. */
+function afterXp(state: PetState,
+    next: PetState,
+    events: PetEvent[],
+): Update {
+    if (levelOf(next.xp) > levelOf(state.xp)) {
+        events.push({ kind: 'leveledUp', level: levelOf(next.xp) });
+    }
+    if (isReadyToChoose(next) && !isReadyToChoose(state)) {
+        events.push({ kind: 'readyToChoose' });
+    }
+    const evolution = evolve(next);
+    return { state: evolution.state, events: [...events, ...evolution.events] };
 }
 
 /** Automatic evolution for every stage except Child, which waits for `chooseBranch`. */

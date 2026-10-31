@@ -1,5 +1,5 @@
 import {
-    ActivityKind, FoodKind, PetEvent, PetState, activityEffort, chooseBranch, createEgg, feed, parseState, recordActivity, tick,
+    ActivityKind, FoodKind, PetEvent, PetState, activityEffort, chooseBranch, createEgg, feed, gainXp, parseState, recordActivity, tick,
 } from './pet';
 import { Branch, LINES } from './species';
 
@@ -85,6 +85,11 @@ export type GameEvent =
     | { kind: 'frenzyStarted'; until: number }
     | { kind: 'eggChosen'; lineId: string }
     | { kind: 'cannotAfford'; food: FoodKind }
+    | { kind: 'potionBought' }
+    | { kind: 'cannotAffordPotion' }
+    | { kind: 'drankPotion' }
+    | { kind: 'noPotions' }
+    | { kind: 'eggCracked' }
     | { kind: 'switched'; id: string };
 
 export interface GameUpdate {
@@ -165,6 +170,35 @@ export function feedGame(game: GameState,
         return { state: game, events: update.events };
     }
     return { state: replaceActive({ ...game, bits: game.bits - price }, update.state), events: update.events };
+}
+
+/** Buy one XP potion into stock. */
+export function buyPotion(game: GameState): GameUpdate {
+    if (game.bits < ROSTER.potionPrice) {
+        return { state: game, events: [{ kind: 'cannotAffordPotion' }] };
+    }
+    return { state: { ...game, bits: game.bits - ROSTER.potionPrice, potions: game.potions + 1 }, events: [{ kind: 'potionBought' }] };
+}
+
+/** Give the active buddy one potion's XP, which ignores care penalties and the frenzy. */
+export function drinkPotion(game: GameState): GameUpdate {
+    if (game.potions <= 0) {
+        return { state: game, events: [{ kind: 'noPotions' }] };
+    }
+    const update = gainXp(activeBuddy(game), ROSTER.potionXp);
+    return {
+        state: replaceActive({ ...game, potions: game.potions - 1 }, update.state),
+        events: [{ kind: 'drankPotion' }, ...update.events],
+    };
+}
+
+/** Turn the oldest waiting egg offer into potions instead of a buddy. Works with a full party. */
+export function crackEgg(game: GameState): GameUpdate {
+    const [offer, ...rest] = game.eggOffers;
+    if (!offer) {
+        return { state: game, events: [] };
+    }
+    return { state: { ...game, eggOffers: rest, potions: game.potions + ROSTER.potionsPerEgg }, events: [{ kind: 'eggCracked' }] };
 }
 
 export function chooseGameBranch(game: GameState,
