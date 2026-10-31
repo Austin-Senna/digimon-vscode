@@ -332,6 +332,24 @@ button {
 .reward-meter span { height: 4px; }
 #egg-meter { --meter: var(--xp); }
 
+/* During a frenzy the egg bar is the frenzy timer, burning orange. */
+#egg-meter.on-fire { --meter: #f08a3c; }
+#egg-meter.on-fire span { height: 6px; }
+
+#egg-meter.on-fire span.on {
+    background: linear-gradient(to top, #e5484d, var(--meter) 60%, #e8b931);
+    animation: burn 0.9s steps(2) infinite alternate;
+}
+
+#egg-meter.on-fire span.on:nth-child(odd) {
+    animation-delay: -0.45s;
+}
+
+@keyframes burn {
+    from { filter: brightness(1); }
+    to { filter: brightness(1.35); }
+}
+
 .readout h2 {
     display: flex;
     align-items: baseline;
@@ -530,7 +548,8 @@ button {
     display: flex;
     align-items: center;
     gap: 2px;
-    color: var(--meat);
+    margin-top: 4px;
+    color: #f08a3c;
 }
 
 .frenzy svg {
@@ -620,7 +639,8 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
     .screen.sleeping .zzz,
-    .screen[data-claude="waiting"] .claude-status {
+    .screen[data-claude="waiting"] .claude-status,
+    #egg-meter.on-fire span.on {
         animation: none;
     }
 }

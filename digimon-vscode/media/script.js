@@ -383,13 +383,26 @@
         button.draggable = usable;
     }
 
-    /** The frenzy countdown runs locally between state updates, which only come when something changes. */
+    /**
+     * The egg bar doubles as the frenzy timer: egg progress is paused during a frenzy, so the bar burns orange and
+     * drains as the frenzy runs out. The countdown runs locally between state updates, which only come on changes.
+     */
     let frenzyEndsAt = 0;
-    function renderFrenzy() {
+    function renderEggProgress() {
+        if (!current) {
+            return;
+        }
         const left = frenzyEndsAt - Date.now();
         const element = $('frenzy');
+        const meter = $('egg-meter');
         element.hidden = left <= 0;
-        if (left > 0) {
+        meter.classList.toggle('on-fire', left > 0);
+        if (left <= 0) {
+            fillMeter(meter, current.nextEgg.current / current.nextEgg.target);
+            caption($('egg-caption'), ['Next egg ', { num: Math.floor(current.nextEgg.current / current.nextEgg.target * 100) }, '%']);
+        } else {
+            fillMeter(meter, Math.min(1, left / current.frenzyMs));
+            caption($('egg-caption'), ['Egg paused']);
             const minutes = Math.ceil(left / 60_000);
             element.replaceChildren(pixelArt(FLAME_ART), document.createTextNode(' Coding frenzy: XP ×3, '));
             const num = document.createElement('span');
@@ -398,7 +411,7 @@
             element.append(num, document.createTextNode(minutes === 1 ? ' minute left' : ' minutes left'));
         }
     }
-    setInterval(renderFrenzy, 15_000);
+    setInterval(renderEggProgress, 15_000);
 
     function renderRoster(state) {
         const slots = state.roster.map(buddy => {
@@ -423,10 +436,6 @@
         }
         $('roster').replaceChildren(...slots);
         $('roster-count').textContent = `${state.roster.length}/${state.maxBuddies}`;
-        fillMeter($('egg-meter'), state.nextEgg.current / state.nextEgg.target);
-        caption($('egg-caption'), state.eggPaused
-            ? ['Egg paused during frenzy']
-            : ['Next egg ', { num: Math.floor(state.nextEgg.current / state.nextEgg.target * 100) }, '%']);
         renderEggOffer(state);
         showThumbFrame(true);
     }
@@ -506,7 +515,7 @@
         renderChoice(state);
         renderItems(state);
         frenzyEndsAt = state.frenzyMsLeft > 0 ? Date.now() + state.frenzyMsLeft : 0;
-        renderFrenzy();
+        renderEggProgress();
         renderRoster(state);
     }
 

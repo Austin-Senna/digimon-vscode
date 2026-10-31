@@ -194,7 +194,7 @@ export class DigimonPlaygroundProvider implements vscode.WebviewViewProvider, Cl
             potionPrice: ROSTER.potionPrice,
             potionXp: ROSTER.potionXp,
             frenzyMsLeft: isFrenzy(game, now) ? game.frenzyUntil - now : 0,
-            eggPaused: isFrenzy(game, now),
+            frenzyMs: ROSTER.frenzyMs,
             food: (Object.keys(FOODS) as FoodKind[]).map(kind => ({
                 kind,
                 name: FOODS[kind].name,
