@@ -40,7 +40,7 @@ suite('Extension Test Suite', () => {
 		await vscode.workspace.applyEdit(edit);
 		const afterEdit = api.state().xp;
 		await document.save();
-		assert.strictEqual(api.state().xp, afterEdit + 5, 'saving changes earns 5 XP');
+		assert.strictEqual(api.state().xp, afterEdit + 15, 'saving changes earns 15 XP');
 
 		const afterSave = api.state().xp;
 		await document.save();
@@ -87,7 +87,7 @@ suite('Extension Test Suite', () => {
 			const before = api.state().xp;
 			append('/somewhere/else', 'outside');
 			append(path.join(workspace, 'src'), 'inside');
-			assert.strictEqual(await xpChange(api, before), 5);
+			assert.strictEqual(await xpChange(api, before), 15);
 		});
 	});
 
@@ -97,7 +97,7 @@ suite('Extension Test Suite', () => {
 		await withEventLog('all', async append => {
 			const before = api.state().xp;
 			append('/somewhere/else', 'elsewhere');
-			assert.strictEqual(await xpChange(api, before), 5);
+			assert.strictEqual(await xpChange(api, before), 15);
 		});
 	});
 });
