@@ -58,7 +58,8 @@ suite('game', () => {
         const broke = game({ bits: 0 });
         const starving = { ...broke, buddies: [{ ...activeBuddy(broke), stage: 'child' as const, fullness: 0 }] };
         const { state } = earn(starving, ROSTER.foodPrices.meat);
-        assert.strictEqual(activeBuddy(state).xp, 0);
+        const prompts = ROSTER.foodPrices.meat / RULES.effortPerActivity.prompt;
+        assert.strictEqual(activeBuddy(state).xp, prompts * RULES.xpPerActivity.prompt * RULES.starvingXpMultiplier, 'half XP while starving');
         const fed = feedGame(state, 'meat').state;
         assert.strictEqual(activeBuddy(fed).fullness, FOODS.meat.fullness);
     });

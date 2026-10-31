@@ -129,9 +129,9 @@ suite('pet model', () => {
 
     test('effort ignores hunger but respects the active-second cap', () => {
         const starving = hatched({ fullness: 0, lastEditXpAt: T0 });
-        assert.strictEqual(activityEffort(starving, 'commit', T0 + 1), RULES.xpPerActivity.commit);
+        assert.strictEqual(activityEffort(starving, 'commit', T0 + 1), RULES.effortPerActivity.commit);
         assert.strictEqual(activityEffort(starving, 'edit', T0 + 1), 0);
-        assert.strictEqual(activityEffort(starving, 'edit', T0 + RULES.cooldownMs.edit), RULES.xpPerActivity.edit);
+        assert.strictEqual(activityEffort(starving, 'edit', T0 + RULES.cooldownMs.edit), RULES.effortPerActivity.edit);
     });
 
     test('edits are throttled to one XP per cooldown', () => {
@@ -173,10 +173,56 @@ suite('pet model', () => {
         assert.strictEqual(committed.xp, saved.xp + RULES.xpPerActivity.commit);
     });
 
-    test('starving pets gain no XP', () => {
+    test('starving pets gain half XP', () => {
         const state = hatched({ fullness: 0 });
-        const update = recordActivity(state, 'commit', T0 + 1);
-        assert.strictEqual(update.state.xp, state.xp);
+        const update = recordActivity(state, 'prompt', T0 + 1);
+        assert.strictEqual(update.state.xp - state.xp, 15 * 0.5);
+    });
+
+    test('starving and exhausted stack to a quarter', () => {
+        const state = hatched({ fullness: 0, energy: 0 });
+        assert.strictEqual(recordActivity(state, 'prompt', T0 + 1).state.xp - state.xp, 15 * 0.25);
+    });
+
+    test('xpMultiplier scales XP after penalties', () => {
+        const state = hatched({ fullness: 0 });
+        assert.strictEqual(recordActivity(state, 'prompt', T0 + 1, 3).state.xp - state.xp, 15 * 0.5 * 3);
+    });
+
+    test('energy is charged on base XP, whatever the multipliers', () => {
+        const state = hatched();
+        const plain = recordActivity(state, 'prompt', T0 + 1).state.energy;
+        assert.strictEqual(plain, RULES.maxEnergy - 15 * RULES.energyCostPerXp);
+        assert.strictEqual(recordActivity(state, 'prompt', T0 + 1, 3).state.energy, plain);
+        assert.strictEqual(recordActivity(hatched({ fullness: 0 }), 'prompt', T0 + 1).state.energy, plain);
+    });
+
+    test('edits earn once per second', () => {
+        const first = recordActivity(hatched(), 'edit', T0 + 1_000).state;
+        assert.strictEqual(recordActivity(first, 'edit', T0 + 1_500).state.xp, first.xp);
+        assert.strictEqual(recordActivity(first, 'edit', T0 + 2_000).state.xp, first.xp + 1);
+    });
+
+    test('an active minute earns 10 XP once per minute and wakes the pet', () => {
+        const state = hatched({ lastActivityAt: T0 - RULES.sleepAfterMs });
+        const first = recordActivity(state, 'active', T0);
+        assert.strictEqual(first.state.xp - state.xp, 10);
+        assert.ok(first.events.some(event => event.kind === 'woke'));
+        assert.strictEqual(recordActivity(first.state, 'active', T0 + 59_000).state.xp, first.state.xp);
+        assert.strictEqual(recordActivity(first.state, 'active', T0 + MINUTE).state.xp, first.state.xp + 10);
+    });
+
+    test('XP per activity is tripled for manual work and 2.5x for Claude work', () => {
+        assert.deepStrictEqual(RULES.xpPerActivity, { edit: 1, save: 15, commit: 30, command: 9, prompt: 15, claudeWork: 5, active: 10 });
+    });
+
+    test('effort keeps 0.1.6 rates in whole numbers; active minutes earn none', () => {
+        const state = hatched();
+        assert.strictEqual(activityEffort(state, 'edit', T0), 1);
+        assert.strictEqual(activityEffort(state, 'save', T0), 5);
+        assert.strictEqual(activityEffort(state, 'prompt', T0), 5);
+        assert.strictEqual(activityEffort(state, 'claudeWork', T0), 2);
+        assert.strictEqual(activityEffort(state, 'active', T0), 0);
     });
 
     test('exhausted pets gain reduced XP and say so once', () => {
@@ -249,8 +295,9 @@ suite('pet model', () => {
     });
 
     test('parseState treats cooldowns missing from older saves as never used', () => {
-        const { lastSaveXpAt: _save, lastCommitXpAt: _commit, lastCommandXpAt: _command, ...old } = hatched();
+        const { lastSaveXpAt: _save, lastCommitXpAt: _commit, lastCommandXpAt: _command, lastActiveXpAt: _active, ...old } = hatched();
         const parsed = parseState(old)!;
+        assert.strictEqual(parsed.lastActiveXpAt, 0);
         assert.strictEqual(parsed.lastSaveXpAt, 0);
         assert.strictEqual(parsed.lastCommitXpAt, 0);
         assert.strictEqual(parsed.lastCommandXpAt, 0);

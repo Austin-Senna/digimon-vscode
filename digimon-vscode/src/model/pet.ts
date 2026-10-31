@@ -6,7 +6,8 @@ const MINUTE = 60 * SECOND;
 export const RULES = {
     /**
      * Reaching level L takes 25 * (L - 1)^2 total XP, so each level costs a little more than the last and levels
-     * never run out. At roughly 900 XP per active hour: Lv 10 in ~2 hours, Lv 25 in ~4 days, Lv 50 in ~2 weeks.
+     * never run out. A median coder (about 1.5 hours a day in the editor) earns roughly 3,300 XP a day:
+     * Lv 10 in ~1 day, Lv 25 in ~4-5 days, Lv 50 in ~3-4 weeks.
      */
     xpPerLevelUnit: 25,
     /** Level at which each stage evolves. A Child at its level waits for the player to choose its path. */
@@ -24,19 +25,27 @@ export const RULES = {
     hungryBelow: 25,
     /** A full stomach lasts 80 minutes; one meat buys 20. */
     fullnessDecayPerMinute: 1.25,
-    energyCostPerXp: 0.05,
+    /** Charged on base XP, so energy lasts the same hour of work whatever the multipliers. */
+    energyCostPerXp: 0.05 / 3,
     energyRegenPerMinuteAsleep: 2,
     /** No activity for this long and the pet falls asleep. */
     sleepAfterMs: 5 * MINUTE,
     /** Time only advances while VS Code is open; longer gaps between ticks are clamped to this. */
     maxTickGapMs: 5 * MINUTE,
     /**
-     * XP per rewarded activity. `claudeWork` is 30 seconds of a Claude session working;
-     * `save` only counts when the file had unsaved changes (checked by the caller).
+     * XP per rewarded activity. `claudeWork` is 30 seconds of a Claude session working; `active` is a minute with any
+     * editor interaction; `save` only counts when the file had unsaved changes (checked by the caller).
      */
-    xpPerActivity: { edit: 1, save: 5, commit: 10, command: 3, prompt: 5, claudeWork: 2 } as Record<ActivityKind, number>,
+    xpPerActivity: { edit: 1, save: 15, commit: 30, command: 9, prompt: 15, claudeWork: 5, active: 10 } as Record<ActivityKind, number>,
+    /**
+     * Effort (bits and egg progress) per activity, kept at the rates from before XP was raised so the economy does
+     * not inflate. Active minutes earn XP only.
+     */
+    effortPerActivity: { edit: 1, save: 5, commit: 10, command: 3, prompt: 5, claudeWork: 2, active: 0 } as Record<ActivityKind, number>,
     /** Minimum gap between rewards of the same kind, so mashing keys, saves, or empty commits earns nothing extra. */
-    cooldownMs: { edit: 3 * SECOND, save: 30 * SECOND, commit: MINUTE, command: 10 * SECOND } as Record<CooldownKind, number>,
+    cooldownMs: { edit: SECOND, save: 30 * SECOND, commit: MINUTE, command: 10 * SECOND, active: MINUTE } as Record<CooldownKind, number>,
+    /** Care penalties stack: a starving, exhausted pet earns a quarter. */
+    starvingXpMultiplier: 0.5,
     exhaustedXpMultiplier: 0.5,
 };
 
@@ -60,18 +69,23 @@ export interface PetState {
     readonly lastSaveXpAt: number;
     readonly lastCommitXpAt: number;
     readonly lastCommandXpAt: number;
+    readonly lastActiveXpAt: number;
 }
 
-/** `command` is a command run in a VS Code terminal; `prompt` and `claudeWork` come from Claude Code sessions. */
-export type ActivityKind = 'edit' | 'save' | 'commit' | 'command' | 'prompt' | 'claudeWork';
+/**
+ * `command` is a command run in a VS Code terminal; `active` is a minute of any editor interaction;
+ * `prompt` and `claudeWork` come from Claude Code sessions.
+ */
+export type ActivityKind = 'edit' | 'save' | 'commit' | 'command' | 'active' | 'prompt' | 'claudeWork';
 
-export type CooldownKind = 'edit' | 'save' | 'commit' | 'command';
+export type CooldownKind = 'edit' | 'save' | 'commit' | 'command' | 'active';
 
-const COOLDOWN_FIELDS: Record<CooldownKind, 'lastEditXpAt' | 'lastSaveXpAt' | 'lastCommitXpAt' | 'lastCommandXpAt'> = {
+const COOLDOWN_FIELDS: Record<CooldownKind, 'lastEditXpAt' | 'lastSaveXpAt' | 'lastCommitXpAt' | 'lastCommandXpAt' | 'lastActiveXpAt'> = {
     edit: 'lastEditXpAt',
     save: 'lastSaveXpAt',
     commit: 'lastCommitXpAt',
     command: 'lastCommandXpAt',
+    active: 'lastActiveXpAt',
 };
 
 /** The state field recording when `kind` last earned XP, or undefined for activities with no cooldown. */
@@ -132,6 +146,7 @@ export function createEgg(now: number,
         lastSaveXpAt: 0,
         lastCommitXpAt: 0,
         lastCommandXpAt: 0,
+        lastActiveXpAt: 0,
     };
 }
 
@@ -220,10 +235,14 @@ export function tick(state: PetState,
     return { state: evolution.state, events: [...events, ...evolution.events] };
 }
 
-/** Credit coding activity, evolving immediately if it crosses a threshold. Returns the same state object when nothing changed. */
+/**
+ * Credit coding activity, evolving immediately if it crosses a threshold. `xpMultiplier` (the frenzy) applies on top
+ * of care penalties. Returns the same state object when nothing changed.
+ */
 export function recordActivity(state: PetState,
     kind: ActivityKind,
     now: number,
+    xpMultiplier = 1,
 ): Update {
     const events: PetEvent[] = [];
     if (isAsleep(state, now)) {
@@ -242,15 +261,16 @@ export function recordActivity(state: PetState,
         next = { ...next, [field]: now };
     }
 
-    if (state.fullness > 0) {
-        const baseXp = RULES.xpPerActivity[kind];
-        const xp = state.energy > 0 ? baseXp : baseXp * RULES.exhaustedXpMultiplier;
-        const energy = Math.max(0, state.energy - xp * RULES.energyCostPerXp);
-        if (energy <= 0 && state.energy > 0) {
-            events.push({ kind: 'exhausted' });
-        }
-        next = { ...next, xp: state.xp + xp, energy };
+    const baseXp = RULES.xpPerActivity[kind];
+    const xp = baseXp
+        * (state.fullness > 0 ? 1 : RULES.starvingXpMultiplier)
+        * (state.energy > 0 ? 1 : RULES.exhaustedXpMultiplier)
+        * xpMultiplier;
+    const energy = Math.max(0, state.energy - baseXp * RULES.energyCostPerXp);
+    if (energy <= 0 && state.energy > 0) {
+        events.push({ kind: 'exhausted' });
     }
+    next = { ...next, xp: state.xp + xp, energy };
     if (levelOf(next.xp) > levelOf(state.xp)) {
         events.push({ kind: 'leveledUp', level: levelOf(next.xp) });
     }
@@ -281,19 +301,19 @@ export function feed(state: PetState,
 }
 
 /**
- * Base XP an activity is worth before hunger or exhaustion, or 0 while on cooldown.
+ * Effort an activity is worth, or 0 while on cooldown. Ignores hunger and exhaustion.
  * Drives bits and eggs, so a starving pet can still earn its way back to food.
  */
 export function activityEffort(state: PetState,
     kind: ActivityKind,
     now: number,
 ): number {
-    return onCooldown(state, kind, now) ? 0 : RULES.xpPerActivity[kind];
+    return onCooldown(state, kind, now) ? 0 : RULES.effortPerActivity[kind];
 }
 
 const NUMBER_FIELDS = ['xp', 'fullness', 'energy', 'ageMs', 'bornAt', 'lastTickAt', 'lastActivityAt', 'lastEditXpAt'] as const;
 /** Added after the first release; older saves read them as never used. */
-const OPTIONAL_NUMBER_FIELDS = ['lastSaveXpAt', 'lastCommitXpAt', 'lastCommandXpAt'] as const;
+const OPTIONAL_NUMBER_FIELDS = ['lastSaveXpAt', 'lastCommitXpAt', 'lastCommandXpAt', 'lastActiveXpAt'] as const;
 
 /**
  * Accept only a well-formed state for a line that still exists, keeping just the known fields.
