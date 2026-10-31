@@ -192,10 +192,15 @@ export function drinkPotion(game: GameState): GameUpdate {
     };
 }
 
-/** Turn the oldest waiting egg offer into potions instead of a buddy. Works with a full party. */
-export function crackEgg(game: GameState): GameUpdate {
+/**
+ * Turn the oldest waiting egg offer into potions instead of a buddy. Works with a full party. `confirmed` is the offer
+ * the player agreed to crack; if another window has taken it meanwhile, nothing happens rather than cracking the next.
+ */
+export function crackEgg(game: GameState,
+    confirmed: EggOffer,
+): GameUpdate {
     const [offer, ...rest] = game.eggOffers;
-    if (!offer) {
+    if (!offer || offer.length !== confirmed.length || !offer.every((lineId, i) => lineId === confirmed[i])) {
         return { state: game, events: [] };
     }
     return { state: { ...game, eggOffers: rest, potions: game.potions + ROSTER.potionsPerEgg }, events: [{ kind: 'eggCracked' }] };

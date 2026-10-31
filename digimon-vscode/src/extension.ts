@@ -108,7 +108,9 @@ async function pickForm(controller: PetController): Promise<void> {
 }
 
 async function confirmCrack(controller: PetController): Promise<void> {
-	if (controller.game.eggOffers.length === 0) {
+	// Remember which egg the player is agreeing to crack: another window may take it while the modal is open.
+	const offer = controller.game.eggOffers[0];
+	if (!offer) {
 		return;
 	}
 	const choice = await vscode.window.showWarningMessage(
@@ -117,7 +119,7 @@ async function confirmCrack(controller: PetController): Promise<void> {
 		'Crack',
 	);
 	if (choice === 'Crack') {
-		controller.crackEgg();
+		controller.crackEgg(offer);
 	}
 }
 

@@ -329,7 +329,7 @@ suite('game', () => {
     test('cracking the oldest egg gives two potions, even with a full party', () => {
         const full = game({ eggOffers: [['agumon', 'gabumon'], ['piyomon', 'palmon']] });
         const party = { ...full, buddies: Array.from({ length: ROSTER.maxBuddies }, (_, i) => ({ ...activeBuddy(full), id: i === 0 ? full.activeId : `x${i}` })) };
-        const { state, events } = crackEgg(party);
+        const { state, events } = crackEgg(party, ['agumon', 'gabumon']);
         assert.deepStrictEqual(state.eggOffers, [['piyomon', 'palmon']]);
         assert.strictEqual(state.potions, 2);
         assert.deepStrictEqual(events, [{ kind: 'eggCracked' }]);
@@ -337,7 +337,7 @@ suite('game', () => {
 
     test('cracking with no egg waiting is a no-op', () => {
         const before = game();
-        const { state, events } = crackEgg(before);
+        const { state, events } = crackEgg(before, ['agumon', 'gabumon']);
         assert.strictEqual(state, before);
         assert.deepStrictEqual(events, []);
     });
@@ -381,5 +381,14 @@ suite('game', () => {
         for (const ids of [['b1'], ['b1', 'b1'], ['b1', 'b9'], ['b1', 'b2', 'b3']]) {
             assert.strictEqual(reorderBuddies(two, ids).state, two, ids.join());
         }
+    });
+
+    test('cracking an egg the player did not confirm is a no-op', () => {
+        // Another window chose the confirmed egg while this window's modal was open; the next one must survive.
+        const later = game({ eggOffers: [['piyomon', 'palmon']] });
+        const { state, events } = crackEgg(later, ['agumon', 'gabumon']);
+        assert.strictEqual(state, later);
+        assert.deepStrictEqual(events, []);
+        assert.strictEqual(crackEgg(later, ['piyomon', 'palmon']).state.potions, ROSTER.potionsPerEgg);
     });
 });
