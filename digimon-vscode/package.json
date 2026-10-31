@@ -42,10 +42,20 @@
   "contributes": {
     "commands": [
       {
-        "command": "digimon.feed",
-        "title": "Feed",
+        "command": "digimon.shop",
+        "title": "Shop",
         "category": "Digimon",
         "icon": "$(heart)"
+      },
+      {
+        "command": "digimon.changeForm",
+        "title": "Change Form",
+        "category": "Digimon"
+      },
+      {
+        "command": "digimon.crackEgg",
+        "title": "Crack Egg into XP Potions",
+        "category": "Digimon"
       },
       {
         "command": "digimon.chooseEvolution",
@@ -108,6 +118,11 @@
           "type": "boolean",
           "default": true,
           "description": "Show notifications when your Digimon evolves, starves, or gets exhausted."
+        },
+        "digimon.openOnStartup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Open the Digimon view when a window starts."
         },
         "digimon.claude.enabled": {
           "type": "boolean",
@@ -176,7 +191,7 @@
     "menus": {
       "view/title": [
         {
-          "command": "digimon.feed",
+          "command": "digimon.shop",
           "when": "view == digimonPlayground",
           "group": "navigation@1"
         },

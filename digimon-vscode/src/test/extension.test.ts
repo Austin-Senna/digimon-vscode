@@ -15,7 +15,7 @@ suite('Extension Test Suite', () => {
 	test('activates and registers its commands', async () => {
 		await activateExtension();
 		const commands = await vscode.commands.getCommands(true);
-		for (const command of ['digimon.feed', 'digimon.switchBuddy', 'digimon.releaseBuddy', 'digimon.startOver', 'digimon.openSaveFolder']) {
+		for (const command of ['digimon.shop', 'digimon.changeForm', 'digimon.crackEgg', 'digimon.switchBuddy', 'digimon.releaseBuddy', 'digimon.startOver', 'digimon.openSaveFolder']) {
 			assert.ok(commands.includes(command), command);
 		}
 	});

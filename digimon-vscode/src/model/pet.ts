@@ -157,7 +157,14 @@ export function createEgg(now: number,
 
 /** The species of the form shown. */
 export function species(state: PetState): string {
-    return speciesFor(lineOf(state), state.form, state.branch);
+    return speciesAt(state, state.form);
+}
+
+/** The species this pet would be at `stage`, on its own line and path. */
+export function speciesAt(state: PetState,
+    stage: Stage,
+): string {
+    return speciesFor(lineOf(state), stage, state.branch);
 }
 
 /** Forms the pet can show: an egg is only an egg; after hatching, Baby I up to the highest stage reached. */
