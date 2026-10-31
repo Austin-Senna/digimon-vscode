@@ -148,7 +148,7 @@ function buddyItems(game: GameState,
 		.filter(buddy => includeActive || buddy.id !== game.activeId)
 		.map(buddy => ({
 			label: displayName(species(buddy)),
-			description: `${STAGE_LABELS[buddy.stage]}${buddy.id === game.activeId ? ' (active)' : ''}`,
+			description: `${STAGE_LABELS[buddy.form]}${buddy.id === game.activeId ? ' (active)' : ''}`,
 			id: buddy.id,
 		}));
 }

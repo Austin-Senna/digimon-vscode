@@ -1,7 +1,7 @@
 import {
-    ActivityKind, FoodKind, PetEvent, PetState, activityEffort, chooseBranch, createEgg, feed, gainXp, parseState, recordActivity, tick,
+    ActivityKind, FoodKind, PetEvent, PetState, activityEffort, chooseBranch, createEgg, feed, gainXp, parseState, recordActivity, setForm, tick,
 } from './pet';
-import { Branch, LINES } from './species';
+import { Branch, LINES, Stage } from './species';
 
 export const GAME_VERSION = 7;
 
@@ -205,6 +205,14 @@ export function chooseGameBranch(game: GameState,
     branch: Branch,
 ): GameUpdate {
     const update = chooseBranch(activeBuddy(game), branch);
+    return { state: update.state === activeBuddy(game) ? game : replaceActive(game, update.state), events: update.events };
+}
+
+/** Show another unlocked form of the active buddy. */
+export function setGameForm(game: GameState,
+    form: Stage,
+): GameUpdate {
+    const update = setForm(activeBuddy(game), form);
     return { state: update.state === activeBuddy(game) ? game : replaceActive(game, update.state), events: update.events };
 }
 

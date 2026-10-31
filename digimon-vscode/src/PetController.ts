@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import { creditClaudeEvent } from './claude/credit';
 import { ClaudeEvent } from './claude/events';
-import { GameState, GameEvent, GameUpdate, activeBuddy, buyPotion, chooseEgg, chooseGameBranch, crackEgg, drinkPotion, feedGame, recordGameActivity, releaseBuddy, switchBuddy, tickGame, createGame } from './model/game';
+import { GameState, GameEvent, GameUpdate, activeBuddy, buyPotion, chooseEgg, chooseGameBranch, crackEgg, drinkPotion, feedGame, recordGameActivity, releaseBuddy, setGameForm, switchBuddy, tickGame, createGame } from './model/game';
 import { ActivityKind, FoodKind, PetState } from './model/pet';
-import { Branch } from './model/species';
+import { Branch, Stage } from './model/species';
 import { GameStore } from './store';
 
 const TICK_INTERVAL_MS = 30_000;
@@ -69,6 +69,10 @@ export class PetController implements vscode.Disposable {
 
     choose(branch: Branch): void {
         this._apply(now => chooseGameBranch(this._store.load(now), branch));
+    }
+
+    setForm(form: Stage): void {
+        this._apply(now => setGameForm(this._store.load(now), form));
     }
 
     switchTo(id: string): void {

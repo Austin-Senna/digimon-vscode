@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import {
-    GAME_VERSION, GameState, ROSTER, activeBuddy, buyPotion, chooseEgg, crackEgg, drinkPotion, createGame, eggOffer, eggProgress, feedGame, isFrenzy, isPartyFull, migrateFromPet, parseGame,
+    GAME_VERSION, GameState, ROSTER, activeBuddy, buyPotion, chooseEgg, crackEgg, drinkPotion, createGame, eggOffer, eggProgress, feedGame, isFrenzy, isPartyFull, migrateFromPet, parseGame, setGameForm,
     recordGameActivity, releaseBuddy, switchBuddy, tickGame,
 } from '../../model/game';
 import { FOODS, RULES, createEgg, levelOf } from '../../model/pet';
@@ -41,7 +41,7 @@ function withSecondBuddy(): GameState {
 /** A game whose active buddy has hatched and has full meters, so XP is not reduced. */
 function hatchedGame(overrides: Partial<GameState> = {}): GameState {
     const base = game(overrides);
-    return { ...base, buddies: [{ ...activeBuddy(base), stage: 'babyII', xp: 0, lastActivityAt: T0 }] };
+    return { ...base, buddies: [{ ...activeBuddy(base), stage: 'babyII', form: 'babyII', xp: 0, lastActivityAt: T0 }] };
 }
 
 suite('game', () => {
@@ -279,6 +279,14 @@ suite('game', () => {
         assert.strictEqual(migrated.bits, rest.bits);
     });
 
+    test('version 6 buddies load showing their stage', () => {
+        const base = game();
+        const adult = { ...activeBuddy(base), stage: 'adult', branch: 'good', form: undefined };
+        const { potions: _potions, frenzyUntil: _frenzy, ...rest } = { ...base, buddies: [adult] };
+        const migrated = parseGame(JSON.parse(JSON.stringify({ ...rest, version: 6 })))!;
+        assert.strictEqual(activeBuddy(migrated).form, 'adult');
+    });
+
     test('version 7 rejects a bad potion count and reads a bad frenzy as none', () => {
         const state = game();
         assert.strictEqual(parseGame({ ...state, potions: -1 }), undefined);
@@ -348,5 +356,15 @@ suite('game', () => {
         assert.strictEqual(activeBuddy(ready).xp, 25 * 24 ** 2 + 1_000);
         const starving = game({ potions: 1, buddies: [{ ...activeBuddy(game()), stage: 'babyI', xp: 0, fullness: 0 }] });
         assert.strictEqual(activeBuddy(drinkPotion(starving).state).stage, 'babyI');
+    });
+
+    test('changing form applies to the active buddy only', () => {
+        const two = withSecondBuddy();
+        const grown = { ...two, buddies: two.buddies.map(buddy => buddy.id === two.activeId ? { ...buddy, stage: 'child' as const, form: 'child' as const } : buddy) };
+        const { state, events } = setGameForm(grown, 'babyI');
+        assert.strictEqual(activeBuddy(state).form, 'babyI');
+        assert.deepStrictEqual(state.buddies.filter(buddy => buddy.id !== two.activeId), grown.buddies.filter(buddy => buddy.id !== two.activeId));
+        assert.strictEqual(events[0].kind, 'formChanged');
+        assert.strictEqual(setGameForm(grown, 'adult').state, grown);
     });
 });

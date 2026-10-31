@@ -54,7 +54,10 @@ export const STATE_VERSION = 1;
 export interface PetState {
     readonly version: typeof STATE_VERSION;
     readonly lineId: string;
+    /** Highest stage reached; drives evolution. */
     readonly stage: Stage;
+    /** Form shown, any unlocked stage up to `stage`. Cosmetic only. */
+    readonly form: Stage;
     readonly branch: Branch | null;
     readonly xp: number;
     readonly fullness: number;
@@ -102,7 +105,8 @@ function onCooldown(state: PetState,
 }
 
 export type PetEvent =
-    | { kind: 'evolved'; from: string; to: string; stage: Stage }
+    | { kind: 'evolved'; from: string; fromStage: Stage; to: string; stage: Stage }
+    | { kind: 'formChanged'; from: string; fromStage: Stage; to: string; stage: Stage; up: boolean }
     | { kind: 'ate' }
     | { kind: 'refused' }
     | { kind: 'starving' }
@@ -134,6 +138,7 @@ export function createEgg(now: number,
         version: STATE_VERSION,
         lineId: lineIds[Math.floor(random() * lineIds.length)],
         stage: 'digitama',
+        form: 'digitama',
         branch: null,
         xp: 0,
         fullness: RULES.maxFullness,
@@ -150,8 +155,29 @@ export function createEgg(now: number,
     };
 }
 
+/** The species of the form shown. */
 export function species(state: PetState): string {
-    return speciesFor(lineOf(state), state.stage, state.branch);
+    return speciesFor(lineOf(state), state.form, state.branch);
+}
+
+/** Forms the pet can show: an egg is only an egg; after hatching, Baby I up to the highest stage reached. */
+export function unlockedForms(state: PetState): Stage[] {
+    return state.stage === 'digitama' ? ['digitama'] : STAGES.slice(1, STAGES.indexOf(state.stage) + 1);
+}
+
+/** Devolve or re-evolve to an unlocked form; level, XP, and the chosen path are untouched. Not while starving. */
+export function setForm(state: PetState,
+    form: Stage,
+): Update {
+    if (form === state.form) {
+        return { state, events: [] };
+    }
+    if (state.fullness <= 0 || !unlockedForms(state).includes(form)) {
+        return { state, events: [{ kind: 'refused' }] };
+    }
+    const next: PetState = { ...state, form };
+    const up = STAGES.indexOf(form) > STAGES.indexOf(state.form);
+    return { state: next, events: [{ kind: 'formChanged', from: species(state), fromStage: state.form, to: species(next), stage: form, up }] };
 }
 
 export function isAsleep(state: PetState,
@@ -205,8 +231,8 @@ export function chooseBranch(state: PetState,
     if (!isReadyToChoose(state)) {
         return { state, events: [] };
     }
-    const next: PetState = { ...state, stage: 'adult', branch };
-    return { state: next, events: [{ kind: 'evolved', from: species(state), to: species(next), stage: 'adult' }] };
+    const next: PetState = { ...state, stage: 'adult', form: 'adult', branch };
+    return { state: next, events: [{ kind: 'evolved', from: species(state), fromStage: state.form, to: species(next), stage: 'adult' }] };
 }
 
 /** Advance real time: hunger while awake, energy recovery while asleep, evolution. */
@@ -335,7 +361,9 @@ export function parseState(raw: unknown): PetState | undefined {
     const state: Record<string, unknown> = { version: STATE_VERSION, lineId: candidate.lineId, stage: candidate.stage, branch };
     NUMBER_FIELDS.forEach(key => state[key] = candidate[key]);
     OPTIONAL_NUMBER_FIELDS.forEach(key => state[key] = Number.isFinite(candidate[key]) ? candidate[key] : 0);
-    return state as unknown as PetState;
+    // Saves before forms, or with a form the pet has not unlocked, show the highest stage.
+    const pet = state as unknown as PetState;
+    return { ...pet, form: unlockedForms({ ...pet, form: pet.stage }).includes(candidate.form as Stage) ? candidate.form as Stage : pet.stage };
 }
 
 /** Announce levels and a waiting choice that `next`'s new XP brought, then evolve at most one stage. */
@@ -359,8 +387,10 @@ function evolve(state: PetState): Update {
     if (level === null || levelOf(state.xp) < level || state.fullness <= 0 || state.stage === 'child') {
         return { state, events: [] };
     }
-    const next: PetState = { ...state, stage: STAGES[STAGES.indexOf(state.stage) + 1] };
-    return { state: next, events: [{ kind: 'evolved', from: species(state), to: species(next), stage: next.stage }] };
+    // Reaching a new stage always shows it, even from a lower form: that is the moment worth seeing.
+    const stage = STAGES[STAGES.indexOf(state.stage) + 1];
+    const next: PetState = { ...state, stage, form: stage };
+    return { state: next, events: [{ kind: 'evolved', from: species(state), fromStage: state.form, to: species(next), stage }] };
 }
 
 function lineOf(state: PetState) {
