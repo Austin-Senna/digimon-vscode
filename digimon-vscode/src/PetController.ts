@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { creditClaudeEvent } from './claude/credit';
 import { ClaudeEvent } from './claude/events';
-import { GameState, GameEvent, GameUpdate, activeBuddy, buyPotion, chooseEgg, chooseGameBranch, crackEgg, drinkPotion, feedGame, recordGameActivity, releaseBuddy, setGameForm, switchBuddy, tickGame, createGame } from './model/game';
+import { GameState, GameEvent, GameUpdate, activeBuddy, buyPotion, chooseEgg, chooseGameBranch, crackEgg, drinkPotion, feedGame, recordGameActivity, releaseBuddy, reorderBuddies, setGameForm, switchBuddy, tickGame, createGame } from './model/game';
 import { ActivityKind, FoodKind, PetState } from './model/pet';
 import { Branch, Stage } from './model/species';
 import { GameStore } from './store';
@@ -81,6 +81,10 @@ export class PetController implements vscode.Disposable {
 
     release(id: string): void {
         this._apply(now => releaseBuddy(this._store.load(now), id));
+    }
+
+    reorder(ids: readonly string[]): void {
+        this._apply(now => reorderBuddies(this._store.load(now), ids));
     }
 
     chooseEgg(lineId: string): void {

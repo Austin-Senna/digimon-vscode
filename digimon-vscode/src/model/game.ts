@@ -247,6 +247,17 @@ export function releaseBuddy(game: GameState,
     return { state: { ...game, buddies: game.buddies.filter(buddy => buddy.id !== id) }, events: [] };
 }
 
+/** Put the party in the order of `ids`, which must name every buddy exactly once; anything else (a stale order from another window) is ignored. */
+export function reorderBuddies(game: GameState,
+    ids: readonly string[],
+): GameUpdate {
+    const byId = new Map(game.buddies.map(buddy => [buddy.id, buddy]));
+    if (ids.length !== byId.size || new Set(ids).size !== ids.length || !ids.every(id => byId.has(id))) {
+        return { state: game, events: [] };
+    }
+    return { state: { ...game, buddies: ids.map(id => byId.get(id)!) }, events: [] };
+}
+
 export function isPartyFull(game: GameState): boolean {
     return game.buddies.length >= ROSTER.maxBuddies;
 }

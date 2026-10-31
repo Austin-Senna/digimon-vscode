@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import {
     GAME_VERSION, GameState, ROSTER, activeBuddy, buyPotion, chooseEgg, crackEgg, drinkPotion, createGame, eggOffer, eggProgress, feedGame, isFrenzy, isPartyFull, migrateFromPet, parseGame, setGameForm,
-    recordGameActivity, releaseBuddy, switchBuddy, tickGame,
+    recordGameActivity, releaseBuddy, reorderBuddies, switchBuddy, tickGame,
 } from '../../model/game';
 import { FOODS, RULES, createEgg, levelOf } from '../../model/pet';
 import { LINES } from '../../model/species';
@@ -366,5 +366,20 @@ suite('game', () => {
         assert.deepStrictEqual(state.buddies.filter(buddy => buddy.id !== two.activeId), grown.buddies.filter(buddy => buddy.id !== two.activeId));
         assert.strictEqual(events[0].kind, 'formChanged');
         assert.strictEqual(setGameForm(grown, 'adult').state, grown);
+    });
+
+    test('reorders the party without changing the active buddy', () => {
+        const two = withSecondBuddy();
+        const ids = two.buddies.map(buddy => buddy.id).reverse();
+        const { state } = reorderBuddies(two, ids);
+        assert.deepStrictEqual(state.buddies.map(buddy => buddy.id), ids);
+        assert.strictEqual(state.activeId, two.activeId);
+    });
+
+    test('ignores a stale, partial, or duplicated order', () => {
+        const two = withSecondBuddy();
+        for (const ids of [['b1'], ['b1', 'b1'], ['b1', 'b9'], ['b1', 'b2', 'b3']]) {
+            assert.strictEqual(reorderBuddies(two, ids).state, two, ids.join());
+        }
     });
 });
